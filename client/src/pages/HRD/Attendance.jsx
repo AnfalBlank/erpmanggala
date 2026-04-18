@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '../../lib/api';
+import { useAuth } from '../../context/AuthContext';
 import { Camera, CameraOff, MapPin, CheckCircle, XCircle, Clock, Shield } from 'lucide-react';
 
 export default function Attendance() {
@@ -14,8 +15,8 @@ export default function Attendance() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
   const videoRef = useRef(null);
   const streamRef = useRef(null);
-
-  const employee = JSON.parse(localStorage.getItem('erp_user') || '{}');
+  const { user } = useAuth();
+  const isStaff = user?.role === 'Staff';
 
   // Get location
   const getLocation = useCallback(() => {
@@ -48,7 +49,7 @@ export default function Attendance() {
       const today = new Date().toISOString().slice(0, 10);
       const res = await api.get(`/attendance?date=${today}`);
       const records = res.data || [];
-      const myRecord = records.find(r => r.employee_name === employee.name);
+      const myRecord = records.find(r => r.employee_name === user.name);
       setTodayStatus(myRecord || null);
     } catch (e) { console.error(e); }
   };
@@ -113,7 +114,7 @@ export default function Attendance() {
     try {
       // Find employee ID
       const emps = await api.get('/employees');
-      const emp = (emps.data || []).find(e => e.name === employee.name);
+      const emp = (emps.data || []).find(e => e.name === user.name);
       if (!emp) {
         setMessage('Data karyawan tidak ditemukan');
         setStatus('error');
@@ -160,7 +161,7 @@ export default function Attendance() {
 
   return (
     <div>
-      <h2 className="text-xl font-bold text-gray-800 mb-6">Absensi Face ID</h2>
+      <h2 className="text-xl font-bold text-gray-800 mb-6">{isStaff ? 'Kehadiran Saya' : 'Absensi Face ID'}</h2>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left: Face ID Attendance */}

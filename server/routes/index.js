@@ -9,6 +9,12 @@ router.use(authMiddleware);
 // Helper: apply middleware only if roles provided, else passthrough
 const maybeRole = (...roles) => roles.length ? roleMiddleware(...roles) : (req, res, next) => next();
 
+// Helper: get employee_id for current user (match users.email to employees.email)
+function getEmployeeIdForUser(req) {
+  const row = db.prepare('SELECT id FROM employees WHERE email = ?').get(req.user.email);
+  return row ? row.id : null;
+}
+
 // Generic CRUD with optional read/write role guards
 const crud = (table, opts = {}) => {
   const { readRoles, writeRoles } = opts;
@@ -132,10 +138,16 @@ crud('taxes', { readRoles: ['Super Admin', 'Admin', 'Finance'], writeRoles: ['Su
 crud('fixed_assets', { readRoles: ['Super Admin', 'Admin', 'Finance'], writeRoles: ['Super Admin', 'Admin', 'Finance'] });
 
 // ── Payroll ──
-router.get('/payroll', roleMiddleware('Super Admin', 'Admin', 'Finance'), (req, res) => {
+router.get('/payroll', roleMiddleware('Super Admin', 'Admin', 'Finance', 'Staff'), (req, res) => {
   const { period } = req.query;
   let sql = `SELECT p.*, e.name as employee_name FROM payroll p LEFT JOIN employees e ON p.employee_id = e.id WHERE 1=1`;
   const params = [];
+  // Staff: only see own payroll
+  if (req.user.role === 'Staff') {
+    const empId = getEmployeeIdForUser(req);
+    if (empId) { sql += ` AND p.employee_id = ?`; params.push(empId); }
+    else { return res.json({ data: [] }); }
+  }
   if (period) { sql += ` AND p.period = ?`; params.push(period); }
   sql += ` ORDER BY p.id DESC`;
   res.json({ data: db.prepare(sql).all(...params) });
@@ -151,10 +163,24 @@ router.put('/payroll/:id', roleMiddleware('Super Admin', 'Admin'), (req, res) =>
 
 // ── HRD ──
 router.get('/leaves', roleMiddleware('Super Admin', 'Admin', 'Staff'), (req, res) => {
-  const data = db.prepare('SELECT l.*, e.name as employee_name FROM leave_requests l LEFT JOIN employees e ON l.employee_id = e.id ORDER BY l.id DESC').all();
-  res.json({ data });
+  let sql = `SELECT l.*, e.name as employee_name FROM leave_requests l LEFT JOIN employees e ON l.employee_id = e.id WHERE 1=1`;
+  const params = [];
+  // Staff: only see own leaves
+  if (req.user.role === 'Staff') {
+    const empId = getEmployeeIdForUser(req);
+    if (empId) { sql += ` AND l.employee_id = ?`; params.push(empId); }
+    else { return res.json({ data: [] }); }
+  }
+  sql += ` ORDER BY l.id DESC`;
+  res.json({ data: db.prepare(sql).all(...params) });
 });
 router.post('/leaves', roleMiddleware('Super Admin', 'Admin', 'Staff'), (req, res) => {
+  // Staff: force employee_id to their own
+  if (req.user.role === 'Staff') {
+    const empId = getEmployeeIdForUser(req);
+    if (!empId) return res.status(403).json({ error: 'Data karyawan tidak ditemukan untuk akun Anda' });
+    req.body.employee_id = empId;
+  }
   const r = db.prepare('INSERT INTO leave_requests (employee_id,type,start_date,end_date,reason,status) VALUES (?,?,?,?,?,?)').run(req.body.employee_id,req.body.type,req.body.start_date,req.body.end_date,req.body.reason,'Pending');
   res.json(db.prepare('SELECT l.*,e.name as employee_name FROM leave_requests l LEFT JOIN employees e ON l.employee_id=e.id WHERE l.id=?').get(r.lastInsertRowid));
 });
@@ -164,22 +190,40 @@ router.put('/leaves/:id', roleMiddleware('Super Admin', 'Admin'), (req, res) => 
 });
 
 // Shifts: Super Admin + Admin + Staff
-crud('shifts', { readRoles: ['Super Admin', 'Admin', 'Staff'], writeRoles: ['Super Admin', 'Admin', 'Staff'] });
+crud('shifts', { readRoles: ['Super Admin', 'Admin', 'Staff'], writeRoles: ['Super Admin', 'Admin'] });
 
 router.get('/attendance', roleMiddleware('Super Admin', 'Admin', 'Staff'), (req, res) => {
   const { date, employee_id } = req.query;
   let sql = `SELECT a.*, e.name as employee_name FROM attendance a LEFT JOIN employees e ON a.employee_id = e.id WHERE 1=1`;
   const params = [];
+  // Staff: only see own attendance
+  if (req.user.role === 'Staff') {
+    const empId = getEmployeeIdForUser(req);
+    if (empId) { sql += ` AND a.employee_id = ?`; params.push(empId); }
+    else { return res.json({ data: [] }); }
+  }
   if (date) { sql += ` AND a.date = ?`; params.push(date); }
-  if (employee_id) { sql += ` AND a.employee_id = ?`; params.push(employee_id); }
+  if (employee_id && req.user.role !== 'Staff') { sql += ` AND a.employee_id = ?`; params.push(employee_id); }
   sql += ` ORDER BY a.date DESC, a.id DESC`;
   res.json({ data: db.prepare(sql).all(...params) });
 });
 router.post('/attendance', roleMiddleware('Super Admin', 'Admin', 'Staff'), (req, res) => {
+  // Staff: force employee_id to their own
+  if (req.user.role === 'Staff') {
+    const empId = getEmployeeIdForUser(req);
+    if (!empId) return res.status(403).json({ error: 'Data karyawan tidak ditemukan untuk akun Anda' });
+    req.body.employee_id = empId;
+  }
   const r = db.prepare('INSERT INTO attendance (employee_id,date,check_in,check_out,status) VALUES (?,?,?,?,?)').run(req.body.employee_id,req.body.date,req.body.check_in,req.body.check_out,req.body.status||'Hadir');
   res.json(db.prepare('SELECT a.*,e.name as employee_name FROM attendance a LEFT JOIN employees e ON a.employee_id=e.id WHERE a.id=?').get(r.lastInsertRowid));
 });
 router.put('/attendance/:id', roleMiddleware('Super Admin', 'Admin', 'Staff'), (req, res) => {
+  // Staff: only allow updating own records
+  if (req.user.role === 'Staff') {
+    const empId = getEmployeeIdForUser(req);
+    const record = db.prepare('SELECT * FROM attendance WHERE id = ?').get(req.params.id);
+    if (!record || record.employee_id !== empId) return res.status(403).json({ error: 'Anda hanya bisa mengubah absensi sendiri' });
+  }
   db.prepare('UPDATE attendance SET check_in=?,check_out=?,status=? WHERE id=?').run(req.body.check_in,req.body.check_out,req.body.status,req.params.id);
   res.json(db.prepare('SELECT * FROM attendance WHERE id=?').get(req.params.id));
 });
@@ -219,6 +263,41 @@ router.put('/settings', roleMiddleware('Super Admin'), (req, res) => {
 
 // ── Dashboard: all authenticated ──
 router.get('/reports/dashboard', (req, res) => {
+  // Staff: return personal dashboard data
+  if (req.user.role === 'Staff') {
+    const empId = getEmployeeIdForUser(req);
+    if (!empId) return res.json({ isStaff: true, attendanceSummary: {}, todayShift: null, leaveBalance: 0, lastPayroll: null });
+
+    const today = new Date().toISOString().slice(0, 10);
+    // Today's attendance
+    const todayAtt = db.prepare('SELECT * FROM attendance WHERE employee_id = ? AND date = ?').get(empId, today);
+    // Attendance this month
+    const monthStart = today.slice(0, 7) + '-01';
+    const monthAtt = db.prepare('SELECT COUNT(*) as c FROM attendance WHERE employee_id = ? AND date >= ? AND status = "Hadir"').get(empId, monthStart).c;
+    // Shifts
+    const shifts = db.prepare('SELECT * FROM shifts ORDER BY id').all();
+    // Leave balance (simple: 12 - used this year)
+    const yearStart = today.slice(0, 4) + '-01-01';
+    const usedLeaves = db.prepare("SELECT COALESCE(SUM(julianday(end_date)-julianday(start_date)+1),0) as days FROM leave_requests WHERE employee_id = ? AND status = 'Approved' AND start_date >= ?").get(empId, yearStart).days;
+    // Last payroll
+    const lastPay = db.prepare('SELECT p.*, e.name as employee_name FROM payroll p LEFT JOIN employees e ON p.employee_id = e.id WHERE p.employee_id = ? ORDER BY p.id DESC LIMIT 1').get(empId);
+    // Last 7 days attendance
+    const recentAtt = db.prepare('SELECT * FROM attendance WHERE employee_id = ? ORDER BY date DESC LIMIT 7').all(empId);
+
+    return res.json({
+      isStaff: true,
+      employeeId: empId,
+      todayAttendance: todayAtt || null,
+      monthAttendance: monthAtt,
+      shifts,
+      leaveBalance: Math.max(0, 12 - usedLeaves),
+      usedLeaves,
+      lastPayroll: lastPay || null,
+      recentAttendance: recentAtt
+    });
+  }
+
+  // Admin/Finance full dashboard
   const income = db.prepare("SELECT COALESCE(SUM(amount),0) as total FROM transactions WHERE type='income'").get().total;
   const expense = db.prepare("SELECT COALESCE(SUM(amount),0) as total FROM transactions WHERE type='expense'").get().total;
   const profit = income - expense;

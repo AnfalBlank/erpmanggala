@@ -13,22 +13,22 @@ import {
 const menuGroups = [
   { label: 'BISNIS', items: [
     { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/projects', icon: FolderKanban, label: 'Proyek', roles: ['Super Admin', 'Admin', 'Staff'] },
-    { path: '/customers', icon: Users, label: 'Customer', roles: ['Super Admin', 'Admin', 'Staff'] },
+    { path: '/projects', icon: FolderKanban, label: 'Proyek', roles: ['Super Admin', 'Admin'] },
+    { path: '/customers', icon: Users, label: 'Customer', roles: ['Super Admin', 'Admin'] },
     { path: '/invoices', icon: FileText, label: 'Invoice', roles: ['Super Admin', 'Admin', 'Finance'] },
     { path: '/purchasing', icon: ShoppingCart, label: 'Purchasing', roles: ['Super Admin', 'Admin', 'Finance'] },
   ]},
   { label: 'INVENTARIS', items: [
-    { path: '/inventory/items', icon: Package, label: 'Item Barang' },
-    { path: '/inventory/warehouses', icon: Building2, label: 'Gudang' },
-    { path: '/inventory/receipts', icon: ArrowDownToLine, label: 'Penerimaan', roles: ['Super Admin', 'Admin', 'Staff'] },
-    { path: '/inventory/issue', icon: ArrowUpFromLine, label: 'Pengeluaran', roles: ['Super Admin', 'Admin', 'Staff'] },
-    { path: '/inventory/stock-report', icon: BarChart3, label: 'Laporan Stok', roles: ['Super Admin', 'Admin', 'Staff'] },
+    { path: '/inventory/items', icon: Package, label: 'Item Barang', roles: ['Super Admin', 'Admin'] },
+    { path: '/inventory/warehouses', icon: Building2, label: 'Gudang', roles: ['Super Admin', 'Admin'] },
+    { path: '/inventory/receipts', icon: ArrowDownToLine, label: 'Penerimaan', roles: ['Super Admin', 'Admin'] },
+    { path: '/inventory/issue', icon: ArrowUpFromLine, label: 'Pengeluaran', roles: ['Super Admin', 'Admin'] },
+    { path: '/inventory/stock-report', icon: BarChart3, label: 'Laporan Stok', roles: ['Super Admin', 'Admin'] },
   ]},
   { label: 'HRD', items: [
     { path: '/employees', icon: UserCircle, label: 'Karyawan', roles: ['Super Admin', 'Admin'] },
-    { path: '/hrd/attendance', icon: Clock, label: 'Absensi', roles: ['Super Admin', 'Admin', 'Staff'] },
-    { path: '/hrd/attendance-manage', icon: UserCheck, label: 'Kelola Absensi', roles: ['Super Admin', 'Admin', 'Staff'] },
+    { path: '/hrd/attendance', icon: Clock, label: 'Kehadiran', roles: ['Super Admin', 'Admin', 'Staff'] },
+    { path: '/hrd/attendance-manage', icon: UserCheck, label: 'Kelola Absensi', roles: ['Super Admin', 'Admin'] },
     { path: '/hrd/leave-request', icon: CalendarDays, label: 'Cuti', roles: ['Super Admin', 'Admin', 'Staff'] },
     { path: '/hrd/leave-approval', icon: CheckSquare, label: 'Approval Cuti', roles: ['Super Admin', 'Admin'] },
     { path: '/hrd/shifts', icon: ClipboardList, label: 'Shift', roles: ['Super Admin', 'Admin', 'Staff'] },
@@ -53,6 +53,17 @@ const menuGroups = [
   ]},
 ];
 
+// Staff gets a special simplified menu
+const staffMenuGroups = [
+  { label: 'PERSONAL', items: [
+    { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
+    { path: '/hrd/attendance', icon: Clock, label: 'Kehadiran' },
+    { path: '/hrd/shifts', icon: ClipboardList, label: 'Shift Kerja' },
+    { path: '/hrd/leave-request', icon: CalendarDays, label: 'Cuti' },
+    { path: '/slip-gaji', icon: DollarSign, label: 'Slip Gaji' },
+  ]},
+];
+
 export default function Sidebar({ onClose }) {
   const [collapsed, setCollapsed] = useState({});
   const { user, logout } = useAuth();
@@ -65,9 +76,10 @@ export default function Sidebar({ onClose }) {
   };
 
   const userRole = user?.role;
+  const isStaff = userRole === 'Staff';
 
-  // Filter items by role, then hide empty groups
-  const filteredGroups = menuGroups
+  // Use staff menu or standard filtered menu
+  const filteredGroups = isStaff ? staffMenuGroups : menuGroups
     .map(group => ({
       ...group,
       items: group.items.filter(item => !item.roles || item.roles.includes(userRole)),

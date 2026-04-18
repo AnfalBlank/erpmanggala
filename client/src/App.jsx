@@ -32,12 +32,14 @@ import AttendanceManage from './pages/HRD/AttendanceManage';
 import LeaveRequest from './pages/HRD/LeaveRequest';
 import LeaveApproval from './pages/HRD/LeaveApproval';
 import Shifts from './pages/HRD/Shifts';
+import SlipGaji from './pages/HRD/SlipGaji';
 
 // Role constants
 const SA = ['Super Admin'];
 const SA_A = ['Super Admin', 'Admin'];
 const SA_A_F = ['Super Admin', 'Admin', 'Finance'];
 const SA_A_S = ['Super Admin', 'Admin', 'Staff'];
+const ALL_STAFF = ['Super Admin', 'Admin', 'Finance', 'Staff'];
 
 export default function App() {
   return (
@@ -46,26 +48,27 @@ export default function App() {
       <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route index element={<Dashboard />} />
 
-        {/* Business */}
-        <Route path="projects" element={<RoleGuard roles={SA_A_S}><Projects /></RoleGuard>} />
-        <Route path="customers" element={<RoleGuard roles={SA_A_S}><Customers /></RoleGuard>} />
+        {/* Business - Staff cannot access */}
+        <Route path="projects" element={<RoleGuard roles={SA_A}><Projects /></RoleGuard>} />
+        <Route path="customers" element={<RoleGuard roles={SA_A}><Customers /></RoleGuard>} />
         <Route path="invoices" element={<RoleGuard roles={SA_A_F}><Invoices /></RoleGuard>} />
         <Route path="purchasing" element={<RoleGuard roles={SA_A_F}><Purchasing /></RoleGuard>} />
 
-        {/* Inventory - items & warehouses readable by all */}
-        <Route path="inventory/items" element={<Items />} />
-        <Route path="inventory/warehouses" element={<Warehouses />} />
-        <Route path="inventory/receipts" element={<RoleGuard roles={SA_A_S}><Receipts /></RoleGuard>} />
-        <Route path="inventory/issue" element={<RoleGuard roles={SA_A_S}><Issue /></RoleGuard>} />
-        <Route path="inventory/stock-report" element={<RoleGuard roles={SA_A_S}><StockReport /></RoleGuard>} />
+        {/* Inventory - Staff cannot access */}
+        <Route path="inventory/items" element={<RoleGuard roles={SA_A}><Items /></RoleGuard>} />
+        <Route path="inventory/warehouses" element={<RoleGuard roles={SA_A}><Warehouses /></RoleGuard>} />
+        <Route path="inventory/receipts" element={<RoleGuard roles={SA_A}><Receipts /></RoleGuard>} />
+        <Route path="inventory/issue" element={<RoleGuard roles={SA_A}><Issue /></RoleGuard>} />
+        <Route path="inventory/stock-report" element={<RoleGuard roles={SA_A}><StockReport /></RoleGuard>} />
 
         {/* HRD */}
         <Route path="employees" element={<RoleGuard roles={SA_A}><Employees /></RoleGuard>} />
         <Route path="hrd/attendance" element={<RoleGuard roles={SA_A_S}><Attendance /></RoleGuard>} />
-        <Route path="hrd/attendance-manage" element={<RoleGuard roles={SA_A_S}><AttendanceManage /></RoleGuard>} />
+        <Route path="hrd/attendance-manage" element={<RoleGuard roles={SA_A}><AttendanceManage /></RoleGuard>} />
         <Route path="hrd/leave-request" element={<RoleGuard roles={SA_A_S}><LeaveRequest /></RoleGuard>} />
         <Route path="hrd/leave-approval" element={<RoleGuard roles={SA_A}><LeaveApproval /></RoleGuard>} />
         <Route path="hrd/shifts" element={<RoleGuard roles={SA_A_S}><Shifts /></RoleGuard>} />
+        <Route path="slip-gaji" element={<RoleGuard roles={['Staff']}><SlipGaji /></RoleGuard>} />
 
         {/* Finance */}
         <Route path="finance/banking" element={<RoleGuard roles={SA_A_F}><Banking /></RoleGuard>} />
