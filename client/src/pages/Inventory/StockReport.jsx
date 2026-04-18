@@ -18,34 +18,34 @@ export default function StockReport() {
   }, [search]);
 
   const filtered = data.filter(i => !warehouseFilter || i.warehouse_id == warehouseFilter);
-  const totalValue = filtered.reduce((s, i) => s + i.stock * i.price, 0);
+  const totalValue = filtered.reduce((s, i) => s + i.stock * (i.avg_cost || i.price || 0), 0);
   const lowStock = filtered.filter(i => i.stock <= i.min_stock).length;
 
   const warehouseSummary = warehouses.map(w => {
     const items = data.filter(i => i.warehouse_id == w.id);
-    return { ...w, itemCount: items.length, totalValue: items.reduce((s, i) => s + i.stock * i.price, 0) };
+    return { ...w, itemCount: items.length, totalValue: items.reduce((s, i) => s + i.stock * (i.avg_cost || i.price || 0), 0) };
   });
 
   const columns = [
     { key: 'name', label: 'Nama Barang' },
     { key: 'category', label: 'Kategori' },
     { key: 'stock', label: 'Stok', render: r => <span className={r.stock <= r.min_stock ? 'text-orange-600 font-medium' : ''}>{r.stock} {r.unit}</span> },
-    { key: 'price', label: 'Harga Rata-rata', render: r => fmt(r.price) },
-    { key: 'totalValue', label: 'Total Nilai', render: r => <span className="font-medium">{fmt(r.stock * r.price)}</span> },
+    { key: 'avg_cost', label: 'HPP (Avg Cost)', render: r => fmt(r.avg_cost || r.price || 0) },
+    { key: 'totalValue', label: 'Total Nilai', render: r => <span className="font-medium">{fmt(r.stock * (r.avg_cost || r.price || 0))}</span> },
   ];
 
   const handleExportCSV = () => {
-    exportCSV(filtered, [
+    exportCSV(filtered.map(i => ({ ...i, totalValue: i.stock * (i.avg_cost || i.price || 0) })), [
       { key: 'name', label: 'Nama' }, { key: 'sku', label: 'SKU' }, { key: 'category', label: 'Kategori' },
-      { key: 'stock', label: 'Stok' }, { key: 'unit', label: 'Satuan' }, { key: 'min_stock', label: 'Min Stok' },
-      { key: 'price', label: 'Harga' },
+      { key: 'stock', label: 'Stok' }, { key: 'unit', label: 'Satuan' }, { key: 'avg_cost', label: 'HPP' },
+      { key: 'totalValue', label: 'Total Nilai' },
     ], `Laporan-Stok-${new Date().toISOString().slice(0,10)}`);
   };
 
   return (
     <div>
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
-        <h2 className="text-xl font-bold text-gray-800">Laporan Stok</h2>
+        <h2 className="text-xl font-bold text-gray-800">Laporan Stok & Valuasi</h2>
         <button onClick={handleExportCSV} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 flex items-center gap-2 no-print"><FileDown size={16} /> Export CSV</button>
       </div>
 
@@ -58,7 +58,7 @@ export default function StockReport() {
           </div>
         ))}
         <div className="bg-blue-50 rounded-xl border border-blue-200 p-4">
-          <div className="text-sm text-gray-500">Total Nilai Stok</div>
+          <div className="text-sm text-gray-500">Total Nilai Inventaris</div>
           <div className="text-lg font-bold text-blue-600">{fmt(totalValue)}</div>
           <div className="text-xs text-gray-500">{filtered.length} item</div>
         </div>

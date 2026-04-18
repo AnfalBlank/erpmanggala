@@ -6,17 +6,21 @@ import {
   Package, BarChart3, Building2, ArrowDownToLine, ArrowUpFromLine,
   Landmark, BookOpen, DollarSign, Settings, Lock, FileCheck, Banknote,
   ClipboardList, CalendarDays, Clock, UserCheck, CheckSquare, Wrench,
-  ChevronDown, ChevronRight, LogOut, X
+  ChevronDown, ChevronRight, LogOut, X, BookMarked, FileSpreadsheet, ListChecks
 } from 'lucide-react';
 
-// roles: array of roles that can see this item. null/undefined = all authenticated
 const menuGroups = [
   { label: 'BISNIS', items: [
     { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/projects', icon: FolderKanban, label: 'Proyek', roles: ['Super Admin', 'Admin'] },
     { path: '/customers', icon: Users, label: 'Customer', roles: ['Super Admin', 'Admin'] },
     { path: '/invoices', icon: FileText, label: 'Invoice', roles: ['Super Admin', 'Admin', 'Finance'] },
-    { path: '/purchasing', icon: ShoppingCart, label: 'Purchasing', roles: ['Super Admin', 'Admin', 'Finance'] },
+    { path: '/purchasing', icon: ShoppingCart, label: 'Pembelian', roles: ['Super Admin', 'Admin', 'Finance'],
+      children: [
+        { path: '/purchasing/pr', icon: ListChecks, label: 'Purchase Request', roles: ['Super Admin', 'Admin'] },
+        { path: '/purchasing/po', icon: FileSpreadsheet, label: 'Purchase Order', roles: ['Super Admin', 'Admin'] },
+      ]
+    },
   ]},
   { label: 'INVENTARIS', items: [
     { path: '/inventory/items', icon: Package, label: 'Item Barang', roles: ['Super Admin', 'Admin'] },
@@ -34,8 +38,9 @@ const menuGroups = [
     { path: '/hrd/shifts', icon: ClipboardList, label: 'Shift', roles: ['Super Admin', 'Admin', 'Staff'] },
   ]},
   { label: 'KEUANGAN', items: [
-    { path: '/finance/banking', icon: Landmark, label: 'Transaksi', roles: ['Super Admin', 'Admin', 'Finance'] },
+    { path: '/finance/banking', icon: Landmark, label: 'Kas & Bank', roles: ['Super Admin', 'Admin', 'Finance'] },
     { path: '/finance/bank-accounts', icon: Banknote, label: 'Rekening Bank', roles: ['Super Admin', 'Admin', 'Finance'] },
+    { path: '/finance/journals', icon: BookMarked, label: 'Jurnal Umum', roles: ['Super Admin', 'Admin', 'Finance'] },
     { path: '/finance/payroll', icon: DollarSign, label: 'Payroll', roles: ['Super Admin', 'Admin', 'Finance'] },
     { path: '/finance/operational', icon: FileCheck, label: 'Operasional', roles: ['Super Admin', 'Admin', 'Finance'] },
     { path: '/finance/coa', icon: BookOpen, label: 'COA', roles: ['Super Admin', 'Admin', 'Finance'] },
@@ -54,7 +59,6 @@ const menuGroups = [
   ]},
 ];
 
-// Staff gets a special simplified menu
 const staffMenuGroups = [
   { label: 'PERSONAL', items: [
     { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -68,11 +72,13 @@ const staffMenuGroups = [
 
 export default function Sidebar({ onClose }) {
   const [collapsed, setCollapsed] = useState({});
+  const [expandedMenus, setExpandedMenus] = useState({});
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
   const toggle = (label) => setCollapsed(prev => ({ ...prev, [label]: !prev[label] }));
+  const toggleMenu = (path) => setExpandedMenus(prev => ({ ...prev, [path]: !prev[path] }));
 
   const handleNavClick = () => {
     if (window.innerWidth < 1024) onClose?.();
@@ -81,13 +87,55 @@ export default function Sidebar({ onClose }) {
   const userRole = user?.role;
   const isStaff = userRole === 'Staff';
 
-  // Use staff menu or standard filtered menu
   const filteredGroups = isStaff ? staffMenuGroups : menuGroups
     .map(group => ({
       ...group,
-      items: group.items.filter(item => !item.roles || item.roles.includes(userRole)),
+      items: group.items.filter(item => {
+        if (item.roles && !item.roles.includes(userRole)) return false;
+        if (item.children) {
+          item.children = item.children.filter(c => !c.roles || c.roles.includes(userRole));
+        }
+        return true;
+      }),
     }))
     .filter(group => group.items.length > 0);
+
+  const isActive = (path) => {
+    if (path === '/') return location.pathname === '/';
+    return location.pathname.startsWith(path);
+  };
+
+  const renderItem = (item) => {
+    if (item.children && item.children.length > 0) {
+      const isExpanded = expandedMenus[item.path];
+      const isChildActive = item.children.some(c => isActive(c.path));
+      return (
+        <div key={item.path}>
+          <button
+            onClick={() => toggleMenu(item.path)}
+            className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors mb-0.5 w-full ${isChildActive ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-600 hover:bg-gray-50'}`}
+          >
+            <item.icon size={18} />
+            <span className="flex-1 text-left">{item.label}</span>
+            {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          </button>
+          {isExpanded && item.children.map(child => (
+            <NavLink key={child.path} to={child.path} onClick={handleNavClick} className={({ isActive: active }) => `flex items-center gap-2.5 px-3 py-2 pl-9 rounded-lg text-sm transition-colors mb-0.5 ${active ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-500 hover:bg-gray-50'}`}>
+              <child.icon size={16} />
+              <span>{child.label}</span>
+            </NavLink>
+          ))}
+        </div>
+      );
+    }
+
+    return (
+      <NavLink key={item.path} to={item.path} end={item.path === '/'} onClick={handleNavClick} className={() => `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors mb-0.5 ${isActive(item.path) ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-600 hover:bg-gray-50'}`}>
+        <item.icon size={18} />
+        <span>{item.label}</span>
+      </NavLink>
+    );
+  };
 
   return (
     <aside className="w-60 bg-white border-r border-gray-200 flex flex-col h-screen">
@@ -109,12 +157,7 @@ export default function Sidebar({ onClose }) {
               {group.label}
               {collapsed[group.label] ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
             </button>
-            {!collapsed[group.label] && group.items.map(item => (
-              <NavLink key={item.path} to={item.path} end={item.path === '/'} onClick={handleNavClick} className={({ isActive }) => `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors mb-0.5 ${isActive ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-600 hover:bg-gray-50'}`}>
-                <item.icon size={18} />
-                <span>{item.label}</span>
-              </NavLink>
-            ))}
+            {!collapsed[group.label] && group.items.map(item => renderItem(item))}
           </div>
         ))}
       </nav>

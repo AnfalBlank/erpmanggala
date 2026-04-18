@@ -8,6 +8,8 @@ import Projects from './pages/Projects';
 import Customers from './pages/Customers';
 import Invoices from './pages/Invoices';
 import Purchasing from './pages/Purchasing';
+import PurchaseRequestList from './pages/Purchasing/PurchaseRequestList';
+import PurchaseOrderList from './pages/Purchasing/PurchaseOrderList';
 import Employees from './pages/Employees';
 import Vendors from './pages/Vendors';
 import Users from './pages/Users';
@@ -29,6 +31,7 @@ import COA from './pages/Finance/COA';
 import Taxes from './pages/Finance/Taxes';
 import Reports from './pages/Finance/Reports';
 import Approval from './pages/Finance/Approval';
+import Journals from './pages/Finance/Journals';
 import Attendance from './pages/HRD/Attendance';
 import AttendanceManage from './pages/HRD/AttendanceManage';
 import LeaveRequest from './pages/HRD/LeaveRequest';
@@ -49,8 +52,6 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route index element={<Dashboard />} />
-
-        {/* Profile - all roles */}
         <Route path="profile" element={<Profile />} />
 
         {/* Business */}
@@ -58,6 +59,8 @@ export default function App() {
         <Route path="customers" element={<RoleGuard roles={SA_A}><Customers /></RoleGuard>} />
         <Route path="invoices" element={<RoleGuard roles={SA_A_F}><Invoices /></RoleGuard>} />
         <Route path="purchasing" element={<RoleGuard roles={SA_A_F}><Purchasing /></RoleGuard>} />
+        <Route path="purchasing/pr" element={<RoleGuard roles={SA_A}><PurchaseRequestList /></RoleGuard>} />
+        <Route path="purchasing/po" element={<RoleGuard roles={SA_A}><PurchaseOrderList /></RoleGuard>} />
 
         {/* Inventory */}
         <Route path="inventory/items" element={<RoleGuard roles={SA_A}><Items /></RoleGuard>} />
@@ -86,6 +89,7 @@ export default function App() {
         <Route path="finance/taxes" element={<RoleGuard roles={SA_A_F}><Taxes /></RoleGuard>} />
         <Route path="finance/reports" element={<RoleGuard roles={SA_A_F}><Reports /></RoleGuard>} />
         <Route path="finance/approval" element={<RoleGuard roles={SA_A_F}><Approval /></RoleGuard>} />
+        <Route path="finance/journals" element={<RoleGuard roles={SA_A_F}><Journals /></RoleGuard>} />
 
         {/* Master */}
         <Route path="vendors" element={<RoleGuard roles={SA_A}><Vendors /></RoleGuard>} />

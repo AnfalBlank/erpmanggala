@@ -8,6 +8,7 @@ const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency:
 export default function Reports() {
   const [tab, setTab] = useState('pl');
   const [data, setData] = useState(null);
+  const [journalSummary, setJournalSummary] = useState(null);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState(new Date().toISOString().slice(0, 10));
 
@@ -16,13 +17,14 @@ export default function Reports() {
     if (dateFrom) params.set('from', dateFrom);
     if (dateTo) params.set('to', dateTo);
     api.get(`/reports/dashboard?${params}`).then(setData).catch(console.error);
+    api.get(`/reports/journal-summary?${params}`).then(setJournalSummary).catch(console.error);
   }, [dateFrom, dateTo]);
 
   if (!data) return <div className="text-center py-20 text-gray-400">Memuat...</div>;
 
-  const income = data.income || 0;
-  const expense = data.expense || 0;
-  const profit = data.profit || income - expense;
+  const income = journalSummary?.totalIncome || data.income || 0;
+  const expense = journalSummary?.totalExpense || data.expense || 0;
+  const profit = income - expense;
   const cashFlow = data.cashFlow || [];
 
   const months = {};
@@ -30,8 +32,14 @@ export default function Reports() {
 
   const handleExportPDF = () => {
     if (tab === 'pl') {
-      exportReportPDF('Laporan Laba Rugi', data, ['Deskripsi', 'Jumlah'],
-        [['Pendapatan', fmt(income)], ['Beban', fmt(expense)], [profit >= 0 ? 'Laba Bersih' : 'Rugi Bersih', fmt(profit)]]);
+      const rows = [
+        ...(journalSummary?.incomeAccounts || []).map(a => [a.account, '', fmt(a.total)]),
+        ['', 'Total Pendapatan', fmt(income)],
+        ...(journalSummary?.expenseAccounts || []).map(a => [a.account, '', fmt(a.total)]),
+        ['', 'Total Beban', fmt(expense)],
+        ['', profit >= 0 ? 'Laba Bersih' : 'Rugi Bersih', fmt(profit)],
+      ];
+      exportReportPDF('Laporan Laba Rugi', data, ['Akun', 'Keterangan', 'Jumlah'], rows);
     } else if (tab === 'cashflow') {
       const rows = Object.entries(months).map(([m, v]) => [m, fmt(v.income), fmt(v.expense), fmt(v.income - v.expense)]);
       exportReportPDF('Arus Kas', data, ['Bulan', 'Masuk', 'Keluar', 'Net'], rows);
@@ -45,7 +53,7 @@ export default function Reports() {
     <div>
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
         <h2 className="text-xl font-bold text-gray-800">Laporan Keuangan</h2>
-        <div className="flex items-center gap-2 no-print">
+        <div className="flex items-center gap-2 no-print flex-wrap">
           <Calendar size={16} className="text-gray-400" />
           <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-3 py-2 border rounded-lg text-sm" />
           <span className="text-gray-400">s/d</span>
@@ -70,16 +78,26 @@ export default function Reports() {
       {tab === 'pl' && (
         <div className="bg-white rounded-xl border border-gray-200 p-6 print-area">
           <div className="print-only font-bold text-lg mb-4">PT Manggala Utama Indonesia</div>
-          <h3 className="font-semibold text-gray-700 mb-4">Laporan Laba/Rugi</h3>
-          <table className="w-full text-sm">
-            <thead><tr className="border-b border-gray-200"><th className="text-left py-3 px-4 font-medium text-gray-500">Deskripsi</th><th className="text-right py-3 px-4 font-medium text-gray-500">Jumlah</th></tr></thead>
+          <h3 className="font-semibold text-gray-700 mb-4">Laporan Laba/Rugi {dateFrom && `(${dateFrom} s/d ${dateTo})`}</h3>
+
+          {/* Income from journal */}
+          <table className="w-full text-sm mb-4">
+            <thead><tr className="border-b border-gray-200"><th className="text-left py-3 px-4 font-medium text-gray-500">Akun</th><th className="text-right py-3 px-4 font-medium text-gray-500">Jumlah</th></tr></thead>
             <tbody className="divide-y divide-gray-100">
               <tr className="bg-green-50"><td colSpan={2} className="py-2 px-4 font-semibold text-green-700">Pendapatan</td></tr>
-              <tr><td className="py-3 px-4 pl-8">Pendapatan Operasional</td><td className="text-right py-3 px-4 text-green-600 font-medium">{fmt(income)}</td></tr>
+              {(journalSummary?.incomeAccounts || []).map((a, i) => (
+                <tr key={i}><td className="py-3 px-4 pl-8">{a.account}</td><td className="text-right py-3 px-4 text-green-600 font-medium">{fmt(a.total)}</td></tr>
+              ))}
+              {(journalSummary?.incomeAccounts || []).length === 0 && <tr><td className="py-3 px-4 pl-8 text-gray-400">Pendapatan Proyek</td><td className="text-right py-3 px-4 text-green-600 font-medium">{fmt(income)}</td></tr>}
               <tr className="border-t border-gray-200 bg-green-50"><td className="py-2 px-4 font-semibold text-green-700">Total Pendapatan</td><td className="text-right py-2 px-4 font-bold text-green-700">{fmt(income)}</td></tr>
+
               <tr className="bg-red-50"><td colSpan={2} className="py-2 px-4 font-semibold text-red-700">Beban</td></tr>
-              <tr><td className="py-3 px-4 pl-8">Beban Operasional</td><td className="text-right py-3 px-4 text-red-600 font-medium">{fmt(expense)}</td></tr>
+              {(journalSummary?.expenseAccounts || []).map((a, i) => (
+                <tr key={i}><td className="py-3 px-4 pl-8">{a.account}</td><td className="text-right py-3 px-4 text-red-600 font-medium">{fmt(a.total)}</td></tr>
+              ))}
+              {(journalSummary?.expenseAccounts || []).length === 0 && <tr><td className="py-3 px-4 pl-8 text-gray-400">Beban Operasional</td><td className="text-right py-3 px-4 text-red-600 font-medium">{fmt(expense)}</td></tr>}
               <tr className="border-t border-gray-200 bg-red-50"><td className="py-2 px-4 font-semibold text-red-700">Total Beban</td><td className="text-right py-2 px-4 font-bold text-red-700">{fmt(expense)}</td></tr>
+
               <tr className="border-t-2 border-gray-300 bg-blue-50"><td className="py-3 px-4 font-bold text-blue-800">{profit >= 0 ? 'Laba Bersih' : 'Rugi Bersih'}</td><td className={`text-right py-3 px-4 font-bold text-lg ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>{fmt(profit)}</td></tr>
             </tbody>
           </table>
@@ -88,20 +106,29 @@ export default function Reports() {
 
       {tab === 'neraca' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print-area">
-          <div className="print-only font-bold text-lg col-span-2">PT Manggala Utama Indonesia — Neraca</div>
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <h3 className="font-semibold text-gray-700 mb-4 flex items-center gap-2"><ArrowUpCircle className="text-blue-500" size={18} /> Aset</h3>
             <div className="space-y-3">
-              <div className="flex justify-between p-3 bg-blue-50 rounded-lg"><span className="text-gray-600">Kas & Bank</span><span className="font-medium">{fmt(data.cashBalance || 0)}</span></div>
-              <div className="flex justify-between p-3 bg-blue-50 rounded-lg"><span className="text-gray-600">Piutang</span><span className="font-medium">{fmt(data.receivables || 0)}</span></div>
-              <div className="flex justify-between p-3 bg-blue-50 rounded-lg"><span className="text-gray-600">Aset Tetap</span><span className="font-medium">{fmt(data.fixedAssets || 0)}</span></div>
+              {(journalSummary?.assetAccounts || []).map((a, i) => (
+                <div key={i} className="flex justify-between p-3 bg-blue-50 rounded-lg"><span className="text-gray-600">{a.account}</span><span className="font-medium">{fmt(a.total)}</span></div>
+              ))}
+              {(!journalSummary?.assetAccounts || journalSummary.assetAccounts.length === 0) && <>
+                <div className="flex justify-between p-3 bg-blue-50 rounded-lg"><span className="text-gray-600">Kas & Bank</span><span className="font-medium">{fmt(data.cashBalance || 0)}</span></div>
+                <div className="flex justify-between p-3 bg-blue-50 rounded-lg"><span className="text-gray-600">Piutang</span><span className="font-medium">{fmt(data.receivables || 0)}</span></div>
+                <div className="flex justify-between p-3 bg-blue-50 rounded-lg"><span className="text-gray-600">Aset Tetap</span><span className="font-medium">{fmt(data.fixedAssets || 0)}</span></div>
+              </>}
               <div className="flex justify-between p-3 bg-blue-100 rounded-lg border-t-2 border-blue-300"><span className="font-bold text-blue-800">Total Aset</span><span className="font-bold text-blue-800">{fmt(data.totalAssets || 0)}</span></div>
             </div>
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <h3 className="font-semibold text-gray-700 mb-4 flex items-center gap-2"><ArrowDownCircle className="text-orange-500" size={18} /> Kewajiban & Modal</h3>
             <div className="space-y-3">
-              <div className="flex justify-between p-3 bg-orange-50 rounded-lg"><span className="text-gray-600">Hutang</span><span className="font-medium">{fmt(data.payables || 0)}</span></div>
+              {(journalSummary?.liabilityAccounts || []).map((a, i) => (
+                <div key={i} className="flex justify-between p-3 bg-orange-50 rounded-lg"><span className="text-gray-600">{a.account}</span><span className="font-medium">{fmt(a.total)}</span></div>
+              ))}
+              {(!journalSummary?.liabilityAccounts || journalSummary.liabilityAccounts.length === 0) && <>
+                <div className="flex justify-between p-3 bg-orange-50 rounded-lg"><span className="text-gray-600">Hutang</span><span className="font-medium">{fmt(data.payables || 0)}</span></div>
+              </>}
               <div className="flex justify-between p-3 bg-orange-100 rounded-lg border-b border-orange-200"><span className="font-semibold text-orange-700">Total Kewajiban</span><span className="font-semibold text-orange-700">{fmt(data.totalLiabilities || 0)}</span></div>
               <div className="flex justify-between p-3 bg-green-50 rounded-lg"><span className="text-gray-600">Modal</span><span className="font-medium">{fmt(data.equity || 0)}</span></div>
               <div className="flex justify-between p-3 bg-purple-50 rounded-lg"><span className="text-gray-600">Laba Ditahan</span><span className="font-medium">{fmt(profit)}</span></div>

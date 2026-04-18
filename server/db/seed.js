@@ -21,9 +21,13 @@ const employees = [
   { name: 'Rudi Hermawan', position: 'Technician', email: 'rudi@manggala.id', phone: '081234567894', salary: 7000000, status: 'Aktif' },
   { name: 'Rina Wulandari', position: 'Admin', email: 'rina@manggala.id', phone: '081234567895', salary: 6000000, status: 'Aktif' },
 ];
-const insertEmp = db.prepare(`INSERT INTO employees (name, position, email, phone, salary, status) VALUES (?, ?, ?, ?, ?, ?)`);
+const insertEmp = db.prepare(`INSERT INTO employees (name, position, email, phone, salary, status, basic_salary, bpjs_kesehatan, bpjs_tk, ptkp_status, npwp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
 const empIds = [];
-for (const e of employees) empIds.push(insertEmp.run(e.name, e.position, e.email, e.phone, e.salary, e.status).lastInsertRowid);
+const ptkpStatuses = ['TK/0','K/0','K/1','K/2','K/3'];
+for (let i = 0; i < employees.length; i++) {
+  const e = employees[i];
+  empIds.push(insertEmp.run(e.name, e.position, e.email, e.phone, e.salary, e.status, e.salary, i % 2, (i + 1) % 2, ptkpStatuses[i % 5], `NPWP-${String(i+1).padStart(8,'0')}`).lastInsertRowid);
+}
 
 const customers = [
   { name: 'PT Maju Jaya', contact_person: 'Andi Wijaya', email: 'andi@majujaya.com', phone: '0211234567', address: 'Jakarta Selatan', npwp: '01.234.567.8-012.000' },
