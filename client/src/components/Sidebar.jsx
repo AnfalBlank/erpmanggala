@@ -9,46 +9,47 @@ import {
   ChevronDown, ChevronRight, LogOut, X
 } from 'lucide-react';
 
+// roles: array of roles that can see this item. null/undefined = all authenticated
 const menuGroups = [
   { label: 'BISNIS', items: [
     { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/projects', icon: FolderKanban, label: 'Proyek' },
-    { path: '/customers', icon: Users, label: 'Customer' },
-    { path: '/invoices', icon: FileText, label: 'Invoice' },
-    { path: '/purchasing', icon: ShoppingCart, label: 'Purchasing' },
+    { path: '/projects', icon: FolderKanban, label: 'Proyek', roles: ['Super Admin', 'Admin', 'Staff'] },
+    { path: '/customers', icon: Users, label: 'Customer', roles: ['Super Admin', 'Admin', 'Staff'] },
+    { path: '/invoices', icon: FileText, label: 'Invoice', roles: ['Super Admin', 'Admin', 'Finance'] },
+    { path: '/purchasing', icon: ShoppingCart, label: 'Purchasing', roles: ['Super Admin', 'Admin', 'Finance'] },
   ]},
   { label: 'INVENTARIS', items: [
     { path: '/inventory/items', icon: Package, label: 'Item Barang' },
     { path: '/inventory/warehouses', icon: Building2, label: 'Gudang' },
-    { path: '/inventory/receipts', icon: ArrowDownToLine, label: 'Penerimaan' },
-    { path: '/inventory/issue', icon: ArrowUpFromLine, label: 'Pengeluaran' },
-    { path: '/inventory/stock-report', icon: BarChart3, label: 'Laporan Stok' },
+    { path: '/inventory/receipts', icon: ArrowDownToLine, label: 'Penerimaan', roles: ['Super Admin', 'Admin', 'Staff'] },
+    { path: '/inventory/issue', icon: ArrowUpFromLine, label: 'Pengeluaran', roles: ['Super Admin', 'Admin', 'Staff'] },
+    { path: '/inventory/stock-report', icon: BarChart3, label: 'Laporan Stok', roles: ['Super Admin', 'Admin', 'Staff'] },
   ]},
   { label: 'HRD', items: [
-    { path: '/employees', icon: UserCircle, label: 'Karyawan' },
-    { path: '/hrd/attendance', icon: Clock, label: 'Absensi' },
-    { path: '/hrd/attendance-manage', icon: UserCheck, label: 'Kelola Absensi' },
-    { path: '/hrd/leave-request', icon: CalendarDays, label: 'Cuti' },
-    { path: '/hrd/leave-approval', icon: CheckSquare, label: 'Approval Cuti' },
-    { path: '/hrd/shifts', icon: ClipboardList, label: 'Shift' },
+    { path: '/employees', icon: UserCircle, label: 'Karyawan', roles: ['Super Admin', 'Admin'] },
+    { path: '/hrd/attendance', icon: Clock, label: 'Absensi', roles: ['Super Admin', 'Admin', 'Staff'] },
+    { path: '/hrd/attendance-manage', icon: UserCheck, label: 'Kelola Absensi', roles: ['Super Admin', 'Admin', 'Staff'] },
+    { path: '/hrd/leave-request', icon: CalendarDays, label: 'Cuti', roles: ['Super Admin', 'Admin', 'Staff'] },
+    { path: '/hrd/leave-approval', icon: CheckSquare, label: 'Approval Cuti', roles: ['Super Admin', 'Admin'] },
+    { path: '/hrd/shifts', icon: ClipboardList, label: 'Shift', roles: ['Super Admin', 'Admin', 'Staff'] },
   ]},
   { label: 'KEUANGAN', items: [
-    { path: '/finance/banking', icon: Landmark, label: 'Transaksi' },
-    { path: '/finance/bank-accounts', icon: Banknote, label: 'Rekening Bank' },
-    { path: '/finance/payroll', icon: DollarSign, label: 'Payroll' },
-    { path: '/finance/operational', icon: FileCheck, label: 'Operasional' },
-    { path: '/finance/coa', icon: BookOpen, label: 'COA' },
-    { path: '/finance/fixed-assets', icon: Wrench, label: 'Aset Tetap' },
-    { path: '/finance/taxes', icon: Lock, label: 'Pajak' },
-    { path: '/finance/reports', icon: BarChart3, label: 'Laporan' },
-    { path: '/finance/approval', icon: FileCheck, label: 'Approval' },
+    { path: '/finance/banking', icon: Landmark, label: 'Transaksi', roles: ['Super Admin', 'Admin', 'Finance'] },
+    { path: '/finance/bank-accounts', icon: Banknote, label: 'Rekening Bank', roles: ['Super Admin', 'Admin', 'Finance'] },
+    { path: '/finance/payroll', icon: DollarSign, label: 'Payroll', roles: ['Super Admin', 'Admin', 'Finance'] },
+    { path: '/finance/operational', icon: FileCheck, label: 'Operasional', roles: ['Super Admin', 'Admin', 'Finance'] },
+    { path: '/finance/coa', icon: BookOpen, label: 'COA', roles: ['Super Admin', 'Admin', 'Finance'] },
+    { path: '/finance/fixed-assets', icon: Wrench, label: 'Aset Tetap', roles: ['Super Admin', 'Admin', 'Finance'] },
+    { path: '/finance/taxes', icon: Lock, label: 'Pajak', roles: ['Super Admin', 'Admin', 'Finance'] },
+    { path: '/finance/reports', icon: BarChart3, label: 'Laporan', roles: ['Super Admin', 'Admin', 'Finance'] },
+    { path: '/finance/approval', icon: FileCheck, label: 'Approval', roles: ['Super Admin', 'Admin', 'Finance'] },
   ]},
   { label: 'MASTER', items: [
-    { path: '/vendors', icon: Truck, label: 'Vendor' },
+    { path: '/vendors', icon: Truck, label: 'Vendor', roles: ['Super Admin', 'Admin'] },
   ]},
   { label: 'ADMIN', items: [
-    { path: '/users', icon: UserCircle, label: 'User' },
-    { path: '/settings', icon: Settings, label: 'Pengaturan' },
+    { path: '/users', icon: UserCircle, label: 'User', roles: ['Super Admin'] },
+    { path: '/settings', icon: Settings, label: 'Pengaturan', roles: ['Super Admin'] },
   ]},
 ];
 
@@ -60,9 +61,18 @@ export default function Sidebar({ onClose }) {
   const toggle = (label) => setCollapsed(prev => ({ ...prev, [label]: !prev[label] }));
 
   const handleNavClick = () => {
-    // Close sidebar on mobile after clicking a link
     if (window.innerWidth < 1024) onClose?.();
   };
+
+  const userRole = user?.role;
+
+  // Filter items by role, then hide empty groups
+  const filteredGroups = menuGroups
+    .map(group => ({
+      ...group,
+      items: group.items.filter(item => !item.roles || item.roles.includes(userRole)),
+    }))
+    .filter(group => group.items.length > 0);
 
   return (
     <aside className="w-60 bg-white border-r border-gray-200 flex flex-col h-screen">
@@ -78,7 +88,7 @@ export default function Sidebar({ onClose }) {
         </button>
       </div>
       <nav className="flex-1 overflow-y-auto py-3 px-3">
-        {menuGroups.map(group => (
+        {filteredGroups.map(group => (
           <div key={group.label} className="mb-3">
             <button onClick={() => toggle(group.label)} className="flex items-center justify-between w-full px-2 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider hover:text-gray-600">
               {group.label}
