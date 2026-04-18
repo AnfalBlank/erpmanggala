@@ -6,6 +6,34 @@ import db from '../db/init.js';
 const router = Router();
 router.use(authMiddleware);
 
+// ── Audit Log Helper ──
+function auditLog(req, action, tableName, recordId, oldData, newData) {
+  try {
+    db.prepare('INSERT INTO audit_logs (user_id, user_name, action, table_name, record_id, old_data, new_data) VALUES (?,?,?,?,?,?,?)')
+      .run(req.user?.id || null, req.user?.name || 'System', action, tableName, recordId,
+        oldData ? JSON.stringify(oldData) : null,
+        newData ? JSON.stringify(newData) : null);
+  } catch (e) { console.error('Audit log error:', e.message); }
+}
+
+// ── Notification Helper ──
+function notify(userId, type, title, message) {
+  try {
+    db.prepare('INSERT INTO notifications (user_id, type, title, message) VALUES (?,?,?,?)')
+      .run(userId, type, title, message);
+  } catch (e) { console.error('Notify error:', e.message); }
+}
+
+function notifyRole(role, type, title, message) {
+  try {
+    const users = db.prepare('SELECT id FROM users WHERE role = ? AND status = ?', 'Aktif').all(role, 'Aktif');
+    // Fix: use proper prepared statement
+    const stmt = db.prepare('SELECT id FROM users WHERE role = ? AND status = ?');
+    const users2 = stmt.all(role, 'Aktif');
+    for (const u of users2) notify(u.id, type, title, message);
+  } catch (e) { console.error('NotifyRole error:', e.message); }
+}
+
 // Helper: apply middleware only if roles provided, else passthrough
 const maybeRole = (...roles) => roles.length ? roleMiddleware(...roles) : (req, res, next) => next();
 
@@ -311,6 +339,136 @@ router.get('/reports/dashboard', (req, res) => {
   const activeProjects = db.prepare("SELECT COUNT(*) as c FROM projects WHERE status='Running'").get().c;
 
   res.json({ income, expense, profit, opExpense, profitOps: profit + opExpense - opExpense, projectStatuses, dueInvoices, overdueInvoices, cashFlow, lowStock, totalEmployees, activeProjects });
+});
+
+// ── Notifications ──
+router.get('/notifications', (req, res) => {
+  const data = db.prepare('SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 50').all(req.user.id);
+  const unread = db.prepare('SELECT COUNT(*) as c FROM notifications WHERE user_id = ? AND read = 0').get(req.user.id).c;
+  res.json({ data, unread });
+});
+router.put('/notifications/:id/read', (req, res) => {
+  db.prepare('UPDATE notifications SET read = 1 WHERE id = ? AND user_id = ?').run(req.params.id, req.user.id);
+  res.json({ success: true });
+});
+router.put('/notifications/read-all', (req, res) => {
+  db.prepare('UPDATE notifications SET read = 1 WHERE user_id = ?').run(req.user.id);
+  res.json({ success: true });
+});
+
+// ── Generate Notifications (called manually or by cron) ──
+router.post('/notifications/generate', roleMiddleware('Super Admin', 'Admin'), (req, res) => {
+  let count = 0;
+  // Overdue invoices
+  const overdue = db.prepare("SELECT i.*, c.name as client_name FROM invoices i LEFT JOIN customers c ON i.client_id = c.id WHERE i.status IN ('Draft','Sent') AND i.due_date < date('now')").all();
+  const admins = db.prepare("SELECT id FROM users WHERE role IN ('Super Admin','Admin','Finance') AND status = 'Aktif'").all();
+  for (const inv of overdue) {
+    for (const u of admins) {
+      const exists = db.prepare("SELECT id FROM notifications WHERE user_id = ? AND type = 'invoice_overdue' AND message LIKE ?").get(u.id, `%${inv.number}%`);
+      if (!exists) { notify(u.id, 'invoice_overdue', 'Invoice Overdue', `Invoice ${inv.number} (${inv.client_name}) sudah overdue!`); count++; }
+    }
+  }
+  // Due in 7 days
+  const due7 = db.prepare("SELECT i.*, c.name as client_name FROM invoices i LEFT JOIN customers c ON i.client_id = c.id WHERE i.status IN ('Draft','Sent') AND i.due_date BETWEEN date('now') AND date('now','+7 days')").all();
+  for (const inv of due7) {
+    for (const u of admins) {
+      const exists = db.prepare("SELECT id FROM notifications WHERE user_id = ? AND type = 'invoice_due_soon' AND message LIKE ?").get(u.id, `%${inv.number}%`);
+      if (!exists) { notify(u.id, 'invoice_due_soon', 'Invoice Jatuh Tempo', `Invoice ${inv.number} jatuh tempo dalam 7 hari.`); count++; }
+    }
+  }
+  // Low stock
+  const lowStock = db.prepare("SELECT * FROM inventory_items WHERE stock <= min_stock").all();
+  for (const item of lowStock) {
+    for (const u of admins) {
+      const exists = db.prepare("SELECT id FROM notifications WHERE user_id = ? AND type = 'low_stock' AND message LIKE ?").get(u.id, `%${item.name}%`);
+      if (!exists) { notify(u.id, 'low_stock', 'Stok Menipis', `${item.name} stok ${item.stock} (min: ${item.min_stock})`); count++; }
+    }
+  }
+  // Pending leave requests
+  const pendingLeaves = db.prepare("SELECT l.*, e.name as employee_name FROM leave_requests l LEFT JOIN employees e ON l.employee_id = e.id WHERE l.status = 'Pending'").all();
+  const leaveAdmins = db.prepare("SELECT id FROM users WHERE role IN ('Super Admin','Admin') AND status = 'Aktif'").all();
+  for (const l of pendingLeaves) {
+    for (const u of leaveAdmins) {
+      const exists = db.prepare("SELECT id FROM notifications WHERE user_id = ? AND type = 'leave_pending' AND message LIKE ?").get(u.id, `%${l.id}%`);
+      if (!exists) { notify(u.id, 'leave_pending', 'Cuti Menunggu Approval', `${l.employee_name} mengajukan ${l.type} (${l.start_date} s/d ${l.end_date})`); count++; }
+    }
+  }
+  res.json({ generated: count });
+});
+
+// ── Audit Logs ──
+router.get('/audit-logs', roleMiddleware('Super Admin'), (req, res) => {
+  const { search, table_name, action, page = 1, limit = 50 } = req.query;
+  let sql = 'SELECT * FROM audit_logs WHERE 1=1';
+  const params = [];
+  if (search) { sql += ' AND (user_name LIKE ? OR table_name LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
+  if (table_name) { sql += ' AND table_name = ?'; params.push(table_name); }
+  if (action) { sql += ' AND action = ?'; params.push(action); }
+  sql += ' ORDER BY id DESC LIMIT ? OFFSET ?';
+  params.push(Number(limit), (Number(page) - 1) * Number(limit));
+  const data = db.prepare(sql).all(...params);
+  let countSql = 'SELECT COUNT(*) as total FROM audit_logs WHERE 1=1';
+  const cp = [];
+  if (search) { countSql += ' AND (user_name LIKE ? OR table_name LIKE ?)'; cp.push(`%${search}%`, `%${search}%`); }
+  if (table_name) { countSql += ' AND table_name = ?'; cp.push(table_name); }
+  if (action) { countSql += ' AND action = ?'; cp.push(action); }
+  const { total } = db.prepare(countSql).get(...cp);
+  res.json({ data, total, page: Number(page), limit: Number(limit) });
+});
+
+// ── Global Search ──
+router.get('/search', (req, res) => {
+  const q = req.query.q || '';
+  if (!q || q.length < 2) return res.json([]);
+  const like = `%${q}%`;
+  const results = [];
+  try { const r = db.prepare('SELECT id, name, email FROM customers WHERE name LIKE ? OR email LIKE ? LIMIT 5').all(like, like); r.forEach(x => results.push({ type: 'Customer', id: x.id, label: x.name, sub: x.email, path: '/customers' })); } catch(e) {}
+  try { const r = db.prepare('SELECT id, name, status FROM projects WHERE name LIKE ? LIMIT 5').all(like); r.forEach(x => results.push({ type: 'Proyek', id: x.id, label: x.name, sub: x.status, path: '/projects' })); } catch(e) {}
+  try { const r = db.prepare('SELECT id, number, status, total FROM invoices WHERE number LIKE ? LIMIT 5').all(like); r.forEach(x => results.push({ type: 'Invoice', id: x.id, label: x.number, sub: `Rp ${x.total?.toLocaleString()}`, path: '/invoices' })); } catch(e) {}
+  try { const r = db.prepare('SELECT id, name, position FROM employees WHERE name LIKE ? OR email LIKE ? LIMIT 5').all(like, like); r.forEach(x => results.push({ type: 'Karyawan', id: x.id, label: x.name, sub: x.position, path: '/employees' })); } catch(e) {}
+  try { const r = db.prepare('SELECT id, name, sku FROM inventory_items WHERE name LIKE ? OR sku LIKE ? LIMIT 5').all(like, like); r.forEach(x => results.push({ type: 'Item', id: x.id, label: x.name, sub: x.sku, path: '/inventory/items' })); } catch(e) {}
+  try { const r = db.prepare('SELECT id, name, email FROM vendors WHERE name LIKE ? LIMIT 5').all(like); r.forEach(x => results.push({ type: 'Vendor', id: x.id, label: x.name, sub: x.email, path: '/vendors' })); } catch(e) {}
+  try { const r = db.prepare('SELECT id, number, status FROM purchases WHERE number LIKE ? LIMIT 5').all(like); r.forEach(x => results.push({ type: 'PO', id: x.id, label: x.number, sub: x.status, path: '/purchasing' })); } catch(e) {}
+  res.json(results);
+});
+
+// ── Bulk Actions ──
+router.post('/bulk/leaves', roleMiddleware('Super Admin', 'Admin'), (req, res) => {
+  const { ids, status } = req.body;
+  if (!ids?.length || !status) return res.status(400).json({ error: 'ids and status required' });
+  const stmt = db.prepare('UPDATE leave_requests SET status = ? WHERE id = ?');
+  for (const id of ids) stmt.run(status, id);
+  res.json({ success: true, updated: ids.length });
+});
+router.post('/bulk/payroll', roleMiddleware('Super Admin', 'Admin'), (req, res) => {
+  const { ids, status } = req.body;
+  if (!ids?.length || !status) return res.status(400).json({ error: 'ids and status required' });
+  const stmt = db.prepare('UPDATE payroll SET status = ? WHERE id = ?');
+  for (const id of ids) stmt.run(status, id);
+  res.json({ success: true, updated: ids.length });
+});
+router.post('/bulk/invoices', roleMiddleware('Super Admin', 'Admin', 'Finance'), (req, res) => {
+  const { ids, action: bulkAction } = req.body;
+  if (!ids?.length) return res.status(400).json({ error: 'ids required' });
+  if (bulkAction === 'send_reminder') {
+    // Just mark them - in real app would send emails
+    res.json({ success: true, message: `${ids.length} reminder(s) processed` });
+  } else {
+    res.status(400).json({ error: 'Unknown action' });
+  }
+});
+router.post('/bulk/inventory-items', roleMiddleware('Super Admin', 'Admin'), (req, res) => {
+  const { ids, action: bulkAction, category } = req.body;
+  if (!ids?.length) return res.status(400).json({ error: 'ids required' });
+  if (bulkAction === 'delete') {
+    for (const id of ids) db.prepare('DELETE FROM inventory_items WHERE id = ?').run(id);
+    res.json({ success: true, deleted: ids.length });
+  } else if (bulkAction === 'update_category') {
+    for (const id of ids) db.prepare('UPDATE inventory_items SET category = ? WHERE id = ?').run(category, id);
+    res.json({ success: true, updated: ids.length });
+  } else {
+    res.status(400).json({ error: 'Unknown action' });
+  }
 });
 
 export default router;

@@ -12,6 +12,8 @@ import Employees from './pages/Employees';
 import Vendors from './pages/Vendors';
 import Users from './pages/Users';
 import Settings from './pages/Settings';
+import Profile from './pages/Profile';
+import AuditLog from './pages/AuditLog';
 import Items from './pages/Inventory/Items';
 import Warehouses from './pages/Inventory/Warehouses';
 import Receipts from './pages/Inventory/Receipts';
@@ -48,13 +50,16 @@ export default function App() {
       <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route index element={<Dashboard />} />
 
-        {/* Business - Staff cannot access */}
+        {/* Profile - all roles */}
+        <Route path="profile" element={<Profile />} />
+
+        {/* Business */}
         <Route path="projects" element={<RoleGuard roles={SA_A}><Projects /></RoleGuard>} />
         <Route path="customers" element={<RoleGuard roles={SA_A}><Customers /></RoleGuard>} />
         <Route path="invoices" element={<RoleGuard roles={SA_A_F}><Invoices /></RoleGuard>} />
         <Route path="purchasing" element={<RoleGuard roles={SA_A_F}><Purchasing /></RoleGuard>} />
 
-        {/* Inventory - Staff cannot access */}
+        {/* Inventory */}
         <Route path="inventory/items" element={<RoleGuard roles={SA_A}><Items /></RoleGuard>} />
         <Route path="inventory/warehouses" element={<RoleGuard roles={SA_A}><Warehouses /></RoleGuard>} />
         <Route path="inventory/receipts" element={<RoleGuard roles={SA_A}><Receipts /></RoleGuard>} />
@@ -85,8 +90,9 @@ export default function App() {
         {/* Master */}
         <Route path="vendors" element={<RoleGuard roles={SA_A}><Vendors /></RoleGuard>} />
 
-        {/* Admin - Super Admin only */}
+        {/* Admin */}
         <Route path="users" element={<RoleGuard roles={SA}><Users /></RoleGuard>} />
+        <Route path="audit-log" element={<RoleGuard roles={SA}><AuditLog /></RoleGuard>} />
         <Route path="settings" element={<RoleGuard roles={SA}><Settings /></RoleGuard>} />
       </Route>
       <Route path="*" element={<Navigate to="/" />} />

@@ -226,6 +226,28 @@ db.exec(`
     key TEXT UNIQUE NOT NULL,
     value TEXT
   );
+
+  CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    message TEXT,
+    read INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS audit_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    user_name TEXT,
+    action TEXT NOT NULL,
+    table_name TEXT NOT NULL,
+    record_id INTEGER,
+    old_data TEXT,
+    new_data TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 export default db;

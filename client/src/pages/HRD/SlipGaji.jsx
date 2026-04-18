@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
-import { DollarSign, FileText } from 'lucide-react';
+import { DollarSign, FileText, FileDown, Printer } from 'lucide-react';
 import StatusBadge from '../../components/StatusBadge';
+import { exportPayrollPDF } from '../../lib/exportUtils';
 
 const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
 
@@ -79,6 +80,10 @@ export default function SlipGaji() {
                     <span className="text-lg font-bold text-gray-800">Gaji Bersih</span>
                     <span className="text-lg font-bold text-blue-600">{fmt(selected.net_salary)}</span>
                   </div>
+                </div>
+                <div className="mt-4 flex gap-2 no-print">
+                  <button onClick={() => exportPayrollPDF(selected)} className="px-3 py-2 bg-green-600 text-white rounded-lg text-sm flex items-center gap-1"><FileDown size={14} /> Export PDF</button>
+                  <button onClick={() => window.print()} className="px-3 py-2 border rounded-lg text-sm flex items-center gap-1"><Printer size={14} /> Print</button>
                 </div>
               </div>
             )}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, FolderKanban, Users, FileText, ShoppingCart, UserCircle, Truck,
@@ -49,6 +49,7 @@ const menuGroups = [
   ]},
   { label: 'ADMIN', items: [
     { path: '/users', icon: UserCircle, label: 'User', roles: ['Super Admin'] },
+    { path: '/audit-log', icon: FileText, label: 'Audit Log', roles: ['Super Admin'] },
     { path: '/settings', icon: Settings, label: 'Pengaturan', roles: ['Super Admin'] },
   ]},
 ];
@@ -61,6 +62,7 @@ const staffMenuGroups = [
     { path: '/hrd/shifts', icon: ClipboardList, label: 'Shift Kerja' },
     { path: '/hrd/leave-request', icon: CalendarDays, label: 'Cuti' },
     { path: '/slip-gaji', icon: DollarSign, label: 'Slip Gaji' },
+    { path: '/profile', icon: UserCircle, label: 'Profil' },
   ]},
 ];
 
@@ -68,6 +70,7 @@ export default function Sidebar({ onClose }) {
   const [collapsed, setCollapsed] = useState({});
   const { user, logout } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const toggle = (label) => setCollapsed(prev => ({ ...prev, [label]: !prev[label] }));
 
@@ -116,13 +119,13 @@ export default function Sidebar({ onClose }) {
         ))}
       </nav>
       <div className="border-t border-gray-200 p-3">
-        <div className="flex items-center gap-2 px-2 mb-2">
+        <button onClick={() => { onClose?.(); navigate('/profile'); }} className="flex items-center gap-2 w-full px-2 mb-2 py-2 rounded-lg hover:bg-gray-50 transition-colors">
           <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-sm font-medium">{user?.name?.[0] || 'U'}</div>
           <div className="flex-1 min-w-0">
             <div className="text-sm font-medium text-gray-700 truncate">{user?.name}</div>
             <div className="text-xs text-gray-400">{user?.role}</div>
           </div>
-        </div>
+        </button>
         <button onClick={logout} className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-500 hover:bg-red-50 rounded-lg transition-colors">
           <LogOut size={16} /> Keluar
         </button>

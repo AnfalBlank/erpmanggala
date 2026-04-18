@@ -7,19 +7,10 @@
     "seed": "node db/seed.js"
   },
   "dependencies": {
-    "bcrypt": "^6.0.0",
+    "express": "^4.21.0",
+    "better-sqlite3": "^11.7.0",
+    "jsonwebtoken": "^9.0.2",
     "bcryptjs": "^2.4.3",
-    "better-sqlite3": "^12.9.0",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^4.22.1",
-    "jsonwebtoken": "^9.0.3",
-    "multer": "^2.1.1",
-    "sql.js": "^1.14.1"
-  },
-  "description": "",
-  "main": "index.js",
-  "keywords": [],
-  "author": "",
-  "license": "ISC"
+    "cors": "^2.8.5"
+  }
 }
