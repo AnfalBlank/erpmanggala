@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from '../lib/i18n.jsx';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { TrendingUp, TrendingDown, DollarSign, Briefcase, AlertTriangle, Clock, Camera, CalendarDays, ClipboardList, FileText, CheckCircle } from 'lucide-react';
 import StatusBadge from '../components/StatusBadge';

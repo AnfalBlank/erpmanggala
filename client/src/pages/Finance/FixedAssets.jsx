@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
 import { Search, Calculator, Edit2, Trash2, Plus, X } from 'lucide-react';
+import CurrencyInput from '../../components/CurrencyInput';
 
 const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
 
@@ -93,11 +94,11 @@ export default function FixedAssets() {
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Kategori</label><input value={form.category} onChange={e => setForm({...form, category: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="block text-sm font-medium text-gray-700 mb-1">Tgl Beli</label><input type="date" value={form.purchase_date} onChange={e => setForm({...form, purchase_date: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
-                <div><label className="block text-sm font-medium text-gray-700 mb-1">Harga Perolehan</label><input type="number" value={form.purchase_price} onChange={e => setForm({...form, purchase_price: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" required /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">Harga Perolehan</label><CurrencyInput value={form.purchase_price} onChange={val => setForm({...form, purchase_price: val})} required /></div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="block text-sm font-medium text-gray-700 mb-1">Umur (tahun)</label><input type="number" value={form.useful_life} onChange={e => setForm({...form, useful_life: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
-                <div><label className="block text-sm font-medium text-gray-700 mb-1">Nilai Buku</label><input type="number" value={form.current_value} onChange={e => setForm({...form, current_value: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">Nilai Buku</label><CurrencyInput value={form.current_value} onChange={val => setForm({...form, current_value: val})} /></div>
               </div>
               <div className="flex gap-3 justify-end"><button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 border rounded-lg text-sm">Batal</button><button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm">Simpan</button></div>
             </form>

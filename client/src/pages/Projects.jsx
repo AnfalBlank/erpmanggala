@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import { Plus, Search, Edit2, Trash2, X, Check, BarChart3, DollarSign, TrendingUp } from 'lucide-react';
+import CurrencyInput from '../components/CurrencyInput';
 import StatusBadge from '../components/StatusBadge';
 
 const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
@@ -153,7 +154,7 @@ export default function Projects() {
               <form onSubmit={handleBudgetSubmit} className="space-y-4">
                 <div><label className="block text-sm font-medium text-gray-700 mb-1">Kategori</label><select value={budgetForm.category} onChange={e => setBudgetForm({...budgetForm, category: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm">{BUDGET_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
                 <div><label className="block text-sm font-medium text-gray-700 mb-1">Deskripsi</label><input value={budgetForm.description} onChange={e => setBudgetForm({...budgetForm, description: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
-                <div><label className="block text-sm font-medium text-gray-700 mb-1">Jumlah Budget</label><input type="number" value={budgetForm.budget_amount} onChange={e => setBudgetForm({...budgetForm, budget_amount: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" required /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">Jumlah Budget</label><CurrencyInput value={budgetForm.budget_amount} onChange={val => setBudgetForm({...budgetForm, budget_amount: val})} required /></div>
                 <div className="flex gap-3 justify-end"><button type="button" onClick={() => setShowBudgetForm(false)} className="px-4 py-2 border rounded-lg text-sm">Batal</button><button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm">Simpan</button></div>
               </form>
             </div>
@@ -207,7 +208,7 @@ export default function Projects() {
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Client</label><select value={form.client_id} onChange={e => setForm({...form, client_id: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm"><option value="">Pilih Client</option>{customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="block text-sm font-medium text-gray-700 mb-1">Status</label><select value={form.status} onChange={e => setForm({...form, status: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm"><option>Planning</option><option>Running</option><option>Done</option></select></div>
-                <div><label className="block text-sm font-medium text-gray-700 mb-1">Nilai (Rp)</label><input type="number" value={form.value} onChange={e => setForm({...form, value: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">Nilai (Rp)</label><CurrencyInput value={form.value} onChange={val => setForm({...form, value: val})} /></div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="block text-sm font-medium text-gray-700 mb-1">Mulai</label><input type="date" value={form.start_date} onChange={e => setForm({...form, start_date: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
-import { Plus, Search, Edit2, Trash2, X, Eye, FileDown, Printer, Send } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, X, Eye, FileDown, Printer, Send, Mail, MessageCircle } from 'lucide-react';
+import CurrencyInput from '../components/CurrencyInput';
 import StatusBadge from '../components/StatusBadge';
 import ResponsiveTable from '../components/ResponsiveTable';
 import { exportInvoicePDF } from '../lib/exportUtils';
@@ -16,6 +17,9 @@ export default function Invoices() {
   const [editId, setEditId] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
   const [form, setForm] = useState({ number: '', client_id: '', project_id: '', date: '', due_date: '', subtotal: '', tax: '', status: 'Draft', items_json: '[]' });
+  const [emailModal, setEmailModal] = useState(null);
+  const [waModal, setWaModal] = useState(null);
+  const [sending, setSending] = useState(false);
 
   const load = () => {
     api.get(`/invoices?search=${search}`).then(res => setData(res.data || [])).catch(console.error);
@@ -39,6 +43,30 @@ export default function Invoices() {
 
   const handleDelete = async (id) => { if (confirm('Hapus invoice ini?')) { await api.delete(`/invoices/${id}`); load(); } };
   const custName = (id) => customers.find(c => c.id === id)?.name || '-';
+  const custPhone = (id) => customers.find(c => c.id === id)?.phone || '';
+  const custEmail = (id) => customers.find(c => c.id === id)?.email || '';
+
+  const handleSendEmail = async () => {
+    if (!emailModal) return;
+    setSending(true);
+    try {
+      await api.post('/email/send-invoice', { invoice_id: emailModal.id, to: emailModal.to });
+      alert('Email terkirim!');
+      setEmailModal(null);
+    } catch (e) { alert('Gagal: ' + (e.message || 'Error')); }
+    setSending(false);
+  };
+
+  const handleSendWA = async () => {
+    if (!waModal) return;
+    setSending(true);
+    try {
+      await api.post('/whatsapp/send-invoice', { invoice_id: waModal.id, phone: waModal.phone, message: waModal.message });
+      alert('WhatsApp terkirim!');
+      setWaModal(null);
+    } catch (e) { alert('Gagal: ' + (e.message || 'Error')); }
+    setSending(false);
+  };
 
   const columns = [
     { key: 'number', label: 'Nomor' },
@@ -92,7 +120,8 @@ export default function Invoices() {
             <div className="flex gap-2 no-print">
               <button onClick={() => setShowDetail(inv)} className="text-gray-500 hover:text-gray-700"><Eye size={16} /></button>
               <button onClick={() => exportInvoicePDF(inv, custName(inv.client_id))} className="text-green-500 hover:text-green-700" title="Export PDF"><FileDown size={16} /></button>
-              <button onClick={() => { setShowDetail(inv); setTimeout(() => window.print(), 200); }} className="text-gray-500 hover:text-gray-700" title="Print"><Printer size={16} /></button>
+              <button onClick={() => setEmailModal({ id: inv.id, to: custEmail(inv.client_id) })} className="text-blue-500 hover:text-blue-700" title="📧 Kirim Email"><Mail size={16} /></button>
+              <button onClick={() => setWaModal({ id: inv.id, phone: custPhone(inv.client_id), message: `Yth ${custName(inv.client_id)}, berikut invoice ${inv.number} dari PT Manggala Utama Indonesia sebesar Rp ${(inv.total||0).toLocaleString('id-ID')}. Terima kasih.` })} className="text-green-600 hover:text-green-800" title="💬 Kirim WA"><MessageCircle size={16} /></button>
               <button onClick={() => handleEdit(inv)} className="text-blue-500 hover:text-blue-700"><Edit2 size={16} /></button>
               <button onClick={() => handleDelete(inv.id)} className="text-red-500 hover:text-red-700"><Trash2 size={16} /></button>
             </div>
@@ -112,8 +141,8 @@ export default function Invoices() {
                 <div><label className="block text-sm font-medium text-gray-700 mb-1">Jatuh Tempo</label><input type="date" value={form.due_date} onChange={e => setForm({...form, due_date: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium text-gray-700 mb-1">Subtotal</label><input type="number" value={form.subtotal} onChange={e => setForm({...form, subtotal: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
-                <div><label className="block text-sm font-medium text-gray-700 mb-1">Pajak</label><input type="number" value={form.tax} onChange={e => setForm({...form, tax: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">Subtotal</label><CurrencyInput value={form.subtotal} onChange={val => setForm({...form, subtotal: val})} /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">Pajak</label><CurrencyInput value={form.tax} onChange={val => setForm({...form, tax: val})} /></div>
               </div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Status</label><select value={form.status} onChange={e => setForm({...form, status: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm"><option>Draft</option><option>Sent</option><option>Paid</option><option>Cancelled</option></select></div>
               <div className="flex gap-3 justify-end"><button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 border rounded-lg text-sm">Batal</button><button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600">Simpan</button></div>
@@ -140,6 +169,33 @@ export default function Invoices() {
             <div className="mt-4 flex gap-2 no-print">
               <button onClick={() => exportInvoicePDF(showDetail, custName(showDetail.client_id))} className="px-3 py-2 bg-green-600 text-white rounded-lg text-sm flex items-center gap-1"><FileDown size={14} /> Export PDF</button>
               <button onClick={() => window.print()} className="px-3 py-2 border rounded-lg text-sm flex items-center gap-1"><Printer size={14} /> Print</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Email Modal */}
+      {emailModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-xl p-5 sm:p-6 w-full sm:max-w-md">
+            <div className="flex items-center justify-between mb-4"><h3 className="font-semibold text-lg">📧 Kirim Email</h3><button onClick={() => setEmailModal(null)}><X size={20} /></button></div>
+            <div className="space-y-3">
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Email Penerima</label><input value={emailModal.to || ''} onChange={e => setEmailModal({...emailModal, to: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
+              <button onClick={handleSendEmail} disabled={sending} className="w-full bg-blue-500 text-white py-2 rounded-lg text-sm hover:bg-blue-600 disabled:opacity-50 flex items-center justify-center gap-2"><Mail size={16} /> {sending ? 'Mengirim...' : 'Kirim Email'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* WhatsApp Modal */}
+      {waModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-xl p-5 sm:p-6 w-full sm:max-w-md">
+            <div className="flex items-center justify-between mb-4"><h3 className="font-semibold text-lg">💬 Kirim WhatsApp</h3><button onClick={() => setWaModal(null)}><X size={20} /></button></div>
+            <div className="space-y-3">
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Nomor Telepon</label><input value={waModal.phone || ''} onChange={e => setWaModal({...waModal, phone: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="+628..." /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Pesan</label><textarea value={waModal.message || ''} onChange={e => setWaModal({...waModal, message: e.target.value})} rows={4} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
+              <button onClick={handleSendWA} disabled={sending} className="w-full bg-green-600 text-white py-2 rounded-lg text-sm hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2"><MessageCircle size={16} /> {sending ? 'Mengirim...' : 'Kirim WhatsApp'}</button>
             </div>
           </div>
         </div>

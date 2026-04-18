@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
 import { Trash2, X, Package, ArrowRight } from 'lucide-react';
+import CurrencyInput from '../../components/CurrencyInput';
 import StatusBadge from '../../components/StatusBadge';
 
 const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
@@ -105,7 +106,7 @@ export default function PurchaseOrderList() {
                   <div key={idx} className="flex gap-2 mb-2 items-center text-sm">
                     <span className="flex-1 text-gray-600">{item.item_name || item.description || `Item ${idx + 1}`}</span>
                     <span className="text-gray-400">{item.qty} {item.unit}</span>
-                    <input type="number" value={item.unit_price} onChange={e => updateConvertLine(idx, 'unit_price', e.target.value)} className="w-28 px-2 py-1 border rounded text-sm" placeholder="Harga" />
+                    <CurrencyInput value={item.unit_price} onChange={val => updateConvertLine(idx, 'unit_price', val)} className="w-28" />
                     <span className="text-gray-500 w-24 text-right">{fmt(item.amount)}</span>
                   </div>
                 ))}

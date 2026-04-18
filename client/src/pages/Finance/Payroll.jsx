@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
-import { DollarSign, TrendingUp, TrendingDown, Wallet, CheckCircle, BarChart3, FileDown, Printer, X, Edit2 } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, Wallet, CheckCircle, BarChart3, FileDown, Printer, X, Edit2, Mail } from 'lucide-react';
 import StatusBadge from '../../components/StatusBadge';
 import ResponsiveTable from '../../components/ResponsiveTable';
 import { exportPayrollPDF } from '../../lib/exportUtils';
+import CurrencyInput from '../../components/CurrencyInput';
+import { formatRp } from '../../lib/currency';
 
 const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
 
@@ -17,6 +19,7 @@ export default function Payroll() {
   const [editId, setEditId] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [bankAccountId, setBankAccountId] = useState('');
+  const [sendingSlip, setSendingSlip] = useState(false);
 
   const load = () => {
     api.get(`/payroll?period=${period}`).then(res => setData(res.data || [])).catch(console.error);
@@ -79,6 +82,15 @@ export default function Payroll() {
     await api.put(`/payroll/${editId}`, editForm);
     setEditId(null);
     load();
+  };
+
+  const handleSendPayslip = async (p) => {
+    setSendingSlip(true);
+    try {
+      await api.post('/email/send-payslip', { payroll_id: p.id });
+      alert('Slip gaji terkirim via email!');
+    } catch (e) { alert('Gagal: ' + (e.message || 'Error')); }
+    setSendingSlip(false);
   };
 
   const totalGaji = data.reduce((s, p) => s + (p.basic_salary || 0), 0);
@@ -160,6 +172,7 @@ export default function Payroll() {
           renderActions={(p) => (
             <div className="flex gap-2 no-print">
               <button onClick={() => exportPayrollPDF(p)} className="text-green-500 hover:text-green-700" title="Export PDF"><FileDown size={16} /></button>
+              <button onClick={() => handleSendPayslip(p)} disabled={sendingSlip} className="text-blue-500 hover:text-blue-700" title="📧 Kirim Slip"><Mail size={16} /></button>
               {p.status === 'Draft' && (
                 <>
                   <button onClick={() => handleEdit(p)} className="text-blue-500 hover:text-blue-700" title="Edit"><Edit2 size={16} /></button>
@@ -194,7 +207,7 @@ export default function Payroll() {
               ].map(f => (
                 <div key={f.key}>
                   <label className="block text-sm font-medium text-gray-700 mb-1">{f.label}</label>
-                  <input type="number" value={editForm[f.key] || 0} onChange={e => setEditForm({...editForm, [f.key]: Number(e.target.value)})} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                  <CurrencyInput value={editForm[f.key] || 0} onChange={val => setEditForm({...editForm, [f.key]: val})} />
                 </div>
               ))}
               <div className="flex gap-3 justify-end mt-4">

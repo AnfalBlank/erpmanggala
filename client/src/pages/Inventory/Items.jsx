@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
 import { Plus, Search, Edit2, Trash2, X } from 'lucide-react';
+import CurrencyInput from '../../components/CurrencyInput';
 
 const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
 
@@ -70,7 +71,7 @@ export default function Items() {
                 <div><label className="block text-sm font-medium text-gray-700 mb-1">Satuan</label><input value={form.unit} onChange={e => setForm({...form, unit: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium text-gray-700 mb-1">Harga</label><input type="number" value={form.price} onChange={e => setForm({...form, price: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">Harga</label><CurrencyInput value={form.price} onChange={val => setForm({...form, price: val})} /></div>
                 <div><label className="block text-sm font-medium text-gray-700 mb-1">Gudang</label><select value={form.warehouse_id} onChange={e => setForm({...form, warehouse_id: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm"><option value="">Pilih</option>{warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}</select></div>
               </div>
               <div className="flex gap-3 justify-end"><button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 border rounded-lg text-sm">Batal</button><button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm">Simpan</button></div>

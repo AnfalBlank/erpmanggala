@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import { Plus, Edit2, Trash2, X, Search, Clock } from 'lucide-react';
+import CurrencyInput from '../../components/CurrencyInput';
 
 export default function Shifts() {
   const [data, setData] = useState([]);
@@ -75,7 +76,7 @@ export default function Shifts() {
                 <div><label className="block text-sm font-medium text-gray-700 mb-1">Jam Masuk</label><input type="time" value={form.start_time} onChange={e => setForm({...form, start_time: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" required /></div>
                 <div><label className="block text-sm font-medium text-gray-700 mb-1">Jam Pulang</label><input type="time" value={form.end_time} onChange={e => setForm({...form, end_time: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" required /></div>
               </div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Denda Telat (Rp)</label><input type="number" value={form.late_penalty} onChange={e => setForm({...form, late_penalty: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Denda Telat (Rp)</label><CurrencyInput value={form.late_penalty} onChange={val => setForm({...form, late_penalty: val})} /></div>
               <div className="flex gap-3 justify-end"><button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 border rounded-lg text-sm">Batal</button><button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm">Simpan</button></div>
             </form>
           </div>

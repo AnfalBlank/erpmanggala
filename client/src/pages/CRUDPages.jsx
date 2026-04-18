@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import { Plus, Search, Edit2, Trash2, X, Check } from 'lucide-react';
 import StatusBadge from '../components/StatusBadge';
+import CurrencyInput from '../components/CurrencyInput';
+import { formatRp } from '../lib/currency';
 
 const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
 
@@ -13,7 +15,7 @@ export function Employees() {
     { key: 'position', label: 'Jabatan' },
     { key: 'email', label: 'Email' },
     { key: 'phone', label: 'Telepon' },
-    { key: 'salary', label: 'Gaji', render: i => fmt(i.salary || i.basic_salary || 0) },
+    { key: 'salary', label: 'Gaji', render: i => formatRp(i.salary || i.basic_salary || 0) },
     { key: 'ptkp_status', label: 'PTKP' },
     { key: 'status', label: 'Status', render: i => <StatusBadge status={i.status} /> },
   ]} formFields={[
@@ -21,10 +23,10 @@ export function Employees() {
     { key: 'position', label: 'Jabatan' },
     { key: 'email', label: 'Email' },
     { key: 'phone', label: 'Telepon' },
-    { key: 'salary', label: 'Gaji Pokok', type: 'number' },
-    { key: 'basic_salary', label: 'Basic Salary (Payroll)', type: 'number' },
+    { key: 'salary', label: 'Gaji Pokok', type: 'currency' },
+    { key: 'basic_salary', label: 'Basic Salary (Payroll)', type: 'currency' },
     { key: 'ptkp_status', label: 'Status PTKP', type: 'select', options: PTKP_OPTIONS.map(p => ({value: p, label: p})) },
-    { key: 'bpjs_kesehatan', label: 'BPJS Kesehatan', type: 'select', options: [{value:'0',label:'Tidak'},{value:'1',label:'Ya'}] },
+    { key: 'bpjs_kesehetan', label: 'BPJS Kesehatan', type: 'select', options: [{value:'0',label:'Tidak'},{value:'1',label:'Ya'}] },
     { key: 'bpjs_tk', label: 'BPJS TK', type: 'select', options: [{value:'0',label:'Tidak'},{value:'1',label:'Ya'}] },
     { key: 'npwp', label: 'NPWP' },
     { key: 'bank_account', label: 'No. Rekening Bank' },
@@ -66,6 +68,7 @@ function CRUDPage({ title, endpoint, columns, formFields }) {
     const payload = {};
     for (const f of formFields) {
       if (f.type === 'number') payload[f.key] = Number(form[f.key]) || 0;
+      else if (f.type === 'currency') payload[f.key] = Number(form[f.key]) || 0;
       else if (f.type === 'select' && (f.key === 'bpjs_kesehatan' || f.key === 'bpjs_tk')) payload[f.key] = Number(form[f.key]) || 0;
       else payload[f.key] = form[f.key] || '';
     }
@@ -123,6 +126,8 @@ function CRUDPage({ title, endpoint, columns, formFields }) {
                     </select>
                   ) : f.type === 'textarea' ? (
                     <textarea value={form[f.key] || ''} onChange={e => setForm({...form, [f.key]: e.target.value})} rows={3} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                  ) : f.type === 'currency' ? (
+                    <CurrencyInput value={Number(form[f.key]) || 0} onChange={val => setForm({...form, [f.key]: val})} />
                   ) : (
                     <input type={f.type || 'text'} value={form[f.key] || ''} onChange={e => setForm({...form, [f.key]: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" required={!f.optional} />
                   )}

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
 import { Plus, X, ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import CurrencyInput from '../../components/CurrencyInput';
 
 const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
 
@@ -89,7 +90,7 @@ export default function Operational() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Deskripsi</label><input value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" required /></div>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium text-gray-700 mb-1">Jumlah</label><input type="number" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" required /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">Jumlah</label><CurrencyInput value={form.amount} onChange={val => setForm({...form, amount: val})} required /></div>
                 <div><label className="block text-sm font-medium text-gray-700 mb-1">Tanggal</label><input type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
               </div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Rekening</label><select value={form.account_id} onChange={e => setForm({...form, account_id: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm"><option value="">Pilih</option>{accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>

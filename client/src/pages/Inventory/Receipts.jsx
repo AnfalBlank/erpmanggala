@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
 import { Plus, Trash2, X } from 'lucide-react';
+import CurrencyInput from '../../components/CurrencyInput';
 
 const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
 
@@ -82,7 +83,7 @@ export default function Receipts() {
                       {items.map(i => <option key={i.id} value={i.id}>{i.name} ({i.sku})</option>)}
                     </select>
                     <input type="number" placeholder="Qty" value={line.qty} onChange={e => updateLine(idx, 'qty', e.target.value)} className="w-20 px-3 py-2 border rounded-lg text-sm" required />
-                    <input type="number" placeholder="Hrg Satuan" value={line.unit_price} onChange={e => updateLine(idx, 'unit_price', e.target.value)} className="w-28 px-3 py-2 border rounded-lg text-sm" />
+                    <CurrencyInput value={line.unit_price} onChange={val => updateLine(idx, 'unit_price', val)} className="w-28" />
                     {form.lines.length > 1 && <button type="button" onClick={() => removeLine(idx)} className="text-red-500"><X size={16} /></button>}
                   </div>
                 ))}

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
 import { Plus, Search, Edit2, Trash2, X, CheckCircle, ArrowRight } from 'lucide-react';
+import CurrencyInput from '../../components/CurrencyInput';
 import StatusBadge from '../../components/StatusBadge';
 
 const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
@@ -90,7 +91,7 @@ export default function PurchaseRequestList() {
                       {items.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
                     </select>
                     <input placeholder="Qty" type="number" value={line.qty} onChange={e => updateLine(idx, 'qty', e.target.value)} className="w-20 px-3 py-2 border rounded-lg text-sm" required />
-                    <input placeholder="Est. Harga" type="number" value={line.estimated_price} onChange={e => updateLine(idx, 'estimated_price', e.target.value)} className="w-28 px-3 py-2 border rounded-lg text-sm" />
+                    <CurrencyInput value={line.estimated_price} onChange={val => updateLine(idx, 'estimated_price', val)} className="w-28" />
                     {form.lines.length > 1 && <button type="button" onClick={() => removeLine(idx)} className="text-red-500"><X size={16} /></button>}
                   </div>
                 ))}

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
 import { Plus, ArrowLeftRight, Search, X, Building2, BookOpen, CheckCircle } from 'lucide-react';
+import CurrencyInput from '../../components/CurrencyInput';
 
 const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
 
@@ -163,7 +164,7 @@ export default function Banking() {
                 <div><label className="block text-sm font-medium text-gray-700 mb-1">Rekening</label><select value={form.account_id} onChange={e => setForm({...form, account_id: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" required><option value="">Pilih</option>{accounts.map(a => <option key={a.id} value={a.id}>{a.name} ({a.bank})</option>)}</select></div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium text-gray-700 mb-1">Jumlah</label><input type="number" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" required /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">Jumlah</label><CurrencyInput value={form.amount} onChange={val => setForm({...form, amount: val})} required /></div>
                 <div><label className="block text-sm font-medium text-gray-700 mb-1">Tanggal</label><input type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
               </div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Kategori</label><input value={form.category} onChange={e => setForm({...form, category: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
@@ -184,7 +185,7 @@ export default function Banking() {
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Dari Rekening</label><select value={transferForm.from_account_id} onChange={e => setTransferForm({...transferForm, from_account_id: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" required><option value="">Pilih</option>{accounts.map(a => <option key={a.id} value={a.id}>{a.name} ({a.bank}) - {fmt(a.balance)}</option>)}</select></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Ke Rekening</label><select value={transferForm.to_account_id} onChange={e => setTransferForm({...transferForm, to_account_id: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" required><option value="">Pilih</option>{accounts.map(a => <option key={a.id} value={a.id}>{a.name} ({a.bank}) - {fmt(a.balance)}</option>)}</select></div>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium text-gray-700 mb-1">Jumlah</label><input type="number" value={transferForm.amount} onChange={e => setTransferForm({...transferForm, amount: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" required /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">Jumlah</label><CurrencyInput value={transferForm.amount} onChange={val => setTransferForm({...transferForm, amount: val})} required /></div>
                 <div><label className="block text-sm font-medium text-gray-700 mb-1">Tanggal</label><input type="date" value={transferForm.date} onChange={e => setTransferForm({...transferForm, date: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
               </div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Deskripsi</label><input value={transferForm.description} onChange={e => setTransferForm({...transferForm, description: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
