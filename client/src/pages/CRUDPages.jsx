@@ -151,7 +151,7 @@ function CRUDPage({ title, endpoint, columns, formFields }) {
                 <div key={f.key}>
                   <label className="block text-sm font-medium text-gray-700 mb-1">{f.label}</label>
                   {f.type === 'select' ? (
-                    <select value={form[f.key] || ''} onChange={e => setForm({...form, [f.key]: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" required={!f.optional}>
+                    <select value={form[f.key] ?? ''} onChange={e => setForm({...form, [f.key]: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" required={!!f.required}>
                       <option value="">Pilih {f.label}</option>
                       {f.options.map(o => <option key={o.value ?? o} value={o.value ?? o}>{o.label ?? o}</option>)}
                     </select>
@@ -160,7 +160,7 @@ function CRUDPage({ title, endpoint, columns, formFields }) {
                   ) : f.type === 'currency' ? (
                     <CurrencyInput value={Number(form[f.key]) || 0} onChange={val => setForm({...form, [f.key]: val})} />
                   ) : (
-                    <input type={f.type || 'text'} value={form[f.key] || ''} onChange={e => setForm({...form, [f.key]: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" required={!f.optional} />
+                    <input type={f.type || 'text'} value={form[f.key] ?? ''} onChange={e => setForm({...form, [f.key]: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" required={!!f.required} />
                   )}
                 </div>
               ))}
