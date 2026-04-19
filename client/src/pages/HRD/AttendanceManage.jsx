@@ -28,7 +28,7 @@ export default function AttendanceManage() {
   };
 
   const loadLocations = () => {
-    api.get('/office-locations').then(res => setLocations(res.data || [])).catch(() => {});
+    api.get("/office-locations").then(res => setLocations(Array.isArray(res) ? res : [])).catch(() => {});
   };
 
   useEffect(() => { load(); loadLocations(); }, [date]);
