@@ -29,6 +29,7 @@ export default function Attendance() {
   const [employees, setEmployees] = useState([]);
   const [showEmpSelect, setShowEmpSelect] = useState(false);
   const videoRef = useRef(null);
+  const [cameraStream, setCameraStream] = useRef(null);
   const streamRef = useRef(null);
   const { user } = useAuth();
   const { toast } = useToast();
