@@ -13,6 +13,7 @@ export const api = {
   get: (url) => request(url),
   post: (url, data) => request(url, { method: 'POST', body: JSON.stringify(data) }),
   put: (url, data) => request(url, { method: 'PUT', body: JSON.stringify(data) }),
+  patch: (url, data) => request(url, { method: 'PATCH', body: JSON.stringify(data) }),
   delete: (url) => request(url, { method: 'DELETE' }),
   login: (email, password) => request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
 };

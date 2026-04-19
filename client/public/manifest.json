@@ -1,0 +1,10 @@
+{
+  "name": "ERP Manggala",
+  "short_name": "ERP Manggala",
+  "description": "Enterprise Resource Planning - PT Manggala Utama Indonesia",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2196F3",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

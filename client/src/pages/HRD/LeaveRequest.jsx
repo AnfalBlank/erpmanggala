@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
+import { useAuth } from '../../context/AuthContext';
 import { Plus, X } from 'lucide-react';
 import StatusBadge from '../../components/StatusBadge';
 
@@ -8,9 +9,19 @@ export default function LeaveRequest() {
   const [employees, setEmployees] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ employee_id: '', type: 'Cuti Tahunan', start_date: '', end_date: '', reason: '' });
+  const { user } = useAuth();
+  const isStaff = user?.role === 'Staff';
 
   const load = () => { api.get('/leaves').then(res => setData(res.data || [])).catch(console.error); api.get('/employees').then(res => setEmployees(res.data || [])).catch(console.error); };
   useEffect(load, []);
+
+  // For staff, auto-find their employee record
+  useEffect(() => {
+    if (isStaff && employees.length > 0) {
+      const emp = employees.find(e => e.email === user.email);
+      if (emp) setForm(f => ({ ...f, employee_id: emp.id }));
+    }
+  }, [isStaff, employees, user]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -21,7 +32,7 @@ export default function LeaveRequest() {
   return (
     <div>
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
-        <h2 className="text-xl font-bold text-gray-800">Permohonan Cuti</h2>
+        <h2 className="text-xl font-bold text-gray-800">{isStaff ? 'Cuti Saya' : 'Permohonan Cuti'}</h2>
         <button onClick={() => setShowForm(true)} className="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-600 flex items-center gap-2"><Plus size={16} /> Ajukan Cuti</button>
       </div>
       <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
@@ -42,7 +53,7 @@ export default function LeaveRequest() {
           <div className="bg-white rounded-t-2xl sm:rounded-xl p-5 sm:p-6 w-full sm:max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4"><h3 className="font-semibold text-lg">Ajukan Cuti</h3><button onClick={() => setShowForm(false)}><X size={20} /></button></div>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Karyawan</label><select value={form.employee_id} onChange={e => setForm({...form, employee_id: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" required><option value="">Pilih</option>{employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}</select></div>
+              {!isStaff && <div><label className="block text-sm font-medium text-gray-700 mb-1">Karyawan</label><select value={form.employee_id} onChange={e => setForm({...form, employee_id: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" required><option value="">Pilih</option>{employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}</select></div>}
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Tipe</label><select value={form.type} onChange={e => setForm({...form, type: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm"><option>Cuti Tahunan</option><option>Sakit</option><option>Cuti Khusus</option></select></div>
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="block text-sm font-medium text-gray-700 mb-1">Mulai</label><input type="date" value={form.start_date} onChange={e => setForm({...form, start_date: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" required /></div>

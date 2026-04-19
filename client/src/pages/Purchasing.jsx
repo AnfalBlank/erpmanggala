@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import { Plus, Search, Edit2, Trash2, X, Eye } from 'lucide-react';
+import CurrencyInput from '../components/CurrencyInput';
 import StatusBadge from '../components/StatusBadge';
 
 const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
@@ -62,7 +63,7 @@ export default function Purchasing() {
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Nomor</label><input value={form.number} onChange={e => setForm({...form, number: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" required /></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Vendor</label><select value={form.vendor_id} onChange={e => setForm({...form, vendor_id: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm"><option value="">Pilih</option>{vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Tanggal</label><input type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Total</label><input type="number" value={form.total} onChange={e => setForm({...form, total: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Total</label><CurrencyInput value={form.total} onChange={val => setForm({...form, total: val})} /></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Status</label><select value={form.status} onChange={e => setForm({...form, status: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm"><option>Draft</option><option>Ordered</option><option>Partial</option><option>Received</option></select></div>
               <div className="flex gap-3 justify-end"><button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 border rounded-lg text-sm">Batal</button><button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm">Simpan</button></div>
             </form>

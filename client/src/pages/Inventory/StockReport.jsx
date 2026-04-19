@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
-import { Search, Warehouse, Package } from 'lucide-react';
+import { Search, Warehouse, FileDown } from 'lucide-react';
+import ResponsiveTable from '../../components/ResponsiveTable';
+import { exportCSV } from '../../lib/exportUtils';
 
 const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
 
@@ -16,17 +18,36 @@ export default function StockReport() {
   }, [search]);
 
   const filtered = data.filter(i => !warehouseFilter || i.warehouse_id == warehouseFilter);
-  const totalValue = filtered.reduce((s, i) => s + i.stock * i.price, 0);
+  const totalValue = filtered.reduce((s, i) => s + i.stock * (i.avg_cost || i.price || 0), 0);
   const lowStock = filtered.filter(i => i.stock <= i.min_stock).length;
 
   const warehouseSummary = warehouses.map(w => {
     const items = data.filter(i => i.warehouse_id == w.id);
-    return { ...w, itemCount: items.length, totalValue: items.reduce((s, i) => s + i.stock * i.price, 0) };
+    return { ...w, itemCount: items.length, totalValue: items.reduce((s, i) => s + i.stock * (i.avg_cost || i.price || 0), 0) };
   });
+
+  const columns = [
+    { key: 'name', label: 'Nama Barang' },
+    { key: 'category', label: 'Kategori' },
+    { key: 'stock', label: 'Stok', render: r => <span className={r.stock <= r.min_stock ? 'text-orange-600 font-medium' : ''}>{r.stock} {r.unit}</span> },
+    { key: 'avg_cost', label: 'HPP (Avg Cost)', render: r => fmt(r.avg_cost || r.price || 0) },
+    { key: 'totalValue', label: 'Total Nilai', render: r => <span className="font-medium">{fmt(r.stock * (r.avg_cost || r.price || 0))}</span> },
+  ];
+
+  const handleExportCSV = () => {
+    exportCSV(filtered.map(i => ({ ...i, totalValue: i.stock * (i.avg_cost || i.price || 0) })), [
+      { key: 'name', label: 'Nama' }, { key: 'sku', label: 'SKU' }, { key: 'category', label: 'Kategori' },
+      { key: 'stock', label: 'Stok' }, { key: 'unit', label: 'Satuan' }, { key: 'avg_cost', label: 'HPP' },
+      { key: 'totalValue', label: 'Total Nilai' },
+    ], `Laporan-Stok-${new Date().toISOString().slice(0,10)}`);
+  };
 
   return (
     <div>
-      <h2 className="text-xl font-bold text-gray-800 mb-6">Laporan Stok</h2>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
+        <h2 className="text-xl font-bold text-gray-800">Laporan Stok & Valuasi</h2>
+        <button onClick={handleExportCSV} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 flex items-center gap-2 no-print"><FileDown size={16} /> Export CSV</button>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {warehouseSummary.map(w => (
@@ -37,7 +58,7 @@ export default function StockReport() {
           </div>
         ))}
         <div className="bg-blue-50 rounded-xl border border-blue-200 p-4">
-          <div className="text-sm text-gray-500">Total Nilai Stok</div>
+          <div className="text-sm text-gray-500">Total Nilai Inventaris</div>
           <div className="text-lg font-bold text-blue-600">{fmt(totalValue)}</div>
           <div className="text-xs text-gray-500">{filtered.length} item</div>
         </div>
@@ -48,7 +69,7 @@ export default function StockReport() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200">
-        <div className="p-4 border-b border-gray-100 flex flex-wrap gap-3">
+        <div className="p-4 border-b border-gray-100 flex flex-wrap gap-3 no-print">
           <div className="relative w-full sm:w-72">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari..." className="w-full pl-9 pr-4 py-2 border rounded-lg text-sm outline-none" />
@@ -58,24 +79,7 @@ export default function StockReport() {
             {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
           </select>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead><tr className="bg-gray-50 text-left text-gray-500"><th className="px-4 py-3 font-medium">Nama Barang</th><th className="px-4 py-3 font-medium">Kategori</th><th className="px-4 py-3 font-medium">Stok</th><th className="px-4 py-3 font-medium">Harga Rata-rata</th><th className="px-4 py-3 font-medium">Total Nilai</th><th className="px-4 py-3 font-medium">Aksi</th></tr></thead>
-            <tbody className="divide-y divide-gray-100">
-              {filtered.map(i => (
-                <tr key={i.id} className={`hover:bg-gray-50 ${i.stock <= i.min_stock ? 'bg-orange-50' : ''}`}>
-                  <td className="px-4 py-3 font-medium">{i.name}</td>
-                  <td className="px-4 py-3">{i.category}</td>
-                  <td className="px-4 py-3">{i.stock} {i.unit}</td>
-                  <td className="px-4 py-3">{fmt(i.price)}</td>
-                  <td className="px-4 py-3 font-medium">{fmt(i.stock * i.price)}</td>
-                  <td className="px-4 py-3"><button className="text-blue-500 hover:text-blue-700 text-sm">Detail</button></td>
-                </tr>
-              ))}
-              {filtered.length === 0 && <tr><td colSpan={6} className="text-center py-8 text-gray-400">Tidak ada data</td></tr>}
-            </tbody>
-          </table>
-        </div>
+        <ResponsiveTable columns={columns} data={filtered} />
       </div>
     </div>
   );
