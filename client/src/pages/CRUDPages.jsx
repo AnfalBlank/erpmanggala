@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
+import { useToast } from '../context/ToastContext';
 import { Plus, Search, Edit2, Trash2, X, Check } from 'lucide-react';
 import StatusBadge from '../components/StatusBadge';
 import CurrencyInput from '../components/CurrencyInput';
@@ -26,7 +27,7 @@ export function Employees() {
     { key: 'salary', label: 'Gaji Pokok', type: 'currency' },
     { key: 'basic_salary', label: 'Basic Salary (Payroll)', type: 'currency' },
     { key: 'ptkp_status', label: 'Status PTKP', type: 'select', options: PTKP_OPTIONS.map(p => ({value: p, label: p})) },
-    { key: 'bpjs_kesehetan', label: 'BPJS Kesehatan', type: 'select', options: [{value:'0',label:'Tidak'},{value:'1',label:'Ya'}] },
+    { key: 'bpjs_kesehatan', label: 'BPJS Kesehatan', type: 'select', options: [{value:'0',label:'Tidak'},{value:'1',label:'Ya'}] },
     { key: 'bpjs_tk', label: 'BPJS TK', type: 'select', options: [{value:'0',label:'Tidak'},{value:'1',label:'Ya'}] },
     { key: 'npwp', label: 'NPWP' },
     { key: 'bank_account', label: 'No. Rekening Bank' },
@@ -59,8 +60,18 @@ function CRUDPage({ title, endpoint, columns, formFields }) {
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
-  const load = () => { api.get(`${endpoint}?search=${search}`).then(res => setData(res.data || [])).catch(console.error); };
+  const load = () => {
+    setLoading(true);
+    api.get(`${endpoint}?search=${search}`).then(res => {
+      setData(Array.isArray(res) ? res : (res.data || []));
+    }).catch(err => {
+      toast('Gagal memuat data: ' + err.message, 'error');
+    }).finally(() => setLoading(false));
+  };
   useEffect(load, [search]);
 
   const handleSubmit = async (e) => {
@@ -72,8 +83,19 @@ function CRUDPage({ title, endpoint, columns, formFields }) {
       else if (f.type === 'select' && (f.key === 'bpjs_kesehatan' || f.key === 'bpjs_tk')) payload[f.key] = Number(form[f.key]) || 0;
       else payload[f.key] = form[f.key] || '';
     }
-    if (editId) { await api.put(`${endpoint}/${editId}`, payload); } else { await api.post(endpoint, payload); }
-    setShowForm(false); setEditId(null); setForm({}); load();
+    setSaving(true);
+    try {
+      if (editId) {
+        await api.put(`${endpoint}/${editId}`, payload);
+        toast(`${title} berhasil diupdate!`);
+      } else {
+        await api.post(endpoint, payload);
+        toast(`${title} berhasil ditambahkan!`);
+      }
+      setShowForm(false); setEditId(null); setForm({}); load();
+    } catch (err) {
+      toast('Gagal menyimpan: ' + err.message, 'error');
+    } finally { setSaving(false); }
   };
 
   const handleEdit = (item) => {
@@ -82,7 +104,16 @@ function CRUDPage({ title, endpoint, columns, formFields }) {
     setForm(f); setEditId(item.id); setShowForm(true);
   };
 
-  const handleDelete = async (id) => { if (confirm('Hapus data ini?')) { await api.delete(`${endpoint}/${id}`); load(); } };
+  const handleDelete = async (id) => {
+    if (!confirm(`Hapus ${title} ini?`)) return;
+    try {
+      await api.delete(`${endpoint}/${id}`);
+      toast(`${title} berhasil dihapus!`);
+      load();
+    } catch (err) {
+      toast('Gagal menghapus: ' + err.message, 'error');
+    }
+  };
 
   return (
     <div>
@@ -133,7 +164,7 @@ function CRUDPage({ title, endpoint, columns, formFields }) {
                   )}
                 </div>
               ))}
-              <div className="flex gap-3 justify-end"><button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 border rounded-lg text-sm">Batal</button><button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600">Simpan</button></div>
+              <div className="flex gap-3 justify-end"><button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 border rounded-lg text-sm">Batal</button><button type="submit" disabled={saving} className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 disabled:opacity-50">{saving ? 'Menyimpan...' : 'Simpan'}</button></div>
             </form>
           </div>
         </div>

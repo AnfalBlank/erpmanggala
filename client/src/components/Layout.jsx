@@ -59,8 +59,9 @@ export default function Layout() {
   // Load notifications
   const loadNotifs = () => {
     api.get('/notifications').then(res => {
-      setNotifications(res.data || []);
-      setUnread(res.unread || 0);
+      const data = Array.isArray(res) ? res : (res.data || []);
+      setNotifications(data);
+      setUnread(res.unread || data.filter(n => !n.read).length || 0);
     }).catch(() => {});
   };
   useEffect(loadNotifs, []);
@@ -100,13 +101,13 @@ export default function Layout() {
 
   return (
     <ToastProvider>
-    <div className="min-h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-gray-50">
       {!isOnline && <div className="offline-banner"><WifiOff size={14} className="inline mr-1" /> Offline Mode — Data akan disinkronkan saat koneksi kembali</div>}
       {sidebarOpen && <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />}
-      <div className={`fixed inset-y-0 left-0 z-50 transform transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:z-30 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div className={`fixed inset-y-0 left-0 z-50 transform transition-transform duration-200 ease-in-out lg:relative lg:translate-x-0 lg:z-30 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <Sidebar onClose={() => setSidebarOpen(false)} />
       </div>
-      <div className="lg:ml-60">
+      <div className="flex-1 min-w-0 flex flex-col">
         <header className="h-14 bg-white border-b border-gray-200 flex items-center px-4 lg:px-6 sticky top-0 z-20">
           <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 -ml-2 mr-2 text-gray-600 hover:bg-gray-100 rounded-lg"><Menu size={20} /></button>
           <h1 className="text-base lg:text-lg font-semibold text-gray-800 truncate hidden sm:block">ERP Manggala</h1>
