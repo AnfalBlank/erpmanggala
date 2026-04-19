@@ -7,8 +7,7 @@ import { Camera, CameraOff, MapPin, CheckCircle, XCircle, Clock, Shield, MapPinn
 function haversine(lat1, lon1, lat2, lon2) {
   const R = 6371000;
   const toRad = d => d * Math.PI / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
+  const dLat = toRad(lat2 - lat1); const dLon = toRad(lon2 - lon1);
   const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
@@ -26,14 +25,31 @@ export default function Attendance() {
   const [permStep, setPermStep] = useState(0);
   const [locPerm, setLocPerm] = useState('unknown');
   const [camPerm, setCamPerm] = useState('unknown');
-  const [message, setMessage] = useState('');
+  const [employee, setEmployee] = useState(null);
+  const [employees, setEmployees] = useState([]);
+  const [showEmpSelect, setShowEmpSelect] = useState(false);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const { user } = useAuth();
   const { toast } = useToast();
-  const isSecure = window.isSecureContext;
 
-  useEffect(() => { checkPermissions(); }, []);
+  useEffect(() => { checkPermissions(); loadEmployee(); }, []);
+
+  const loadEmployee = async () => {
+    try {
+      const res = await api.get('/employees');
+      const list = Array.isArray(res) ? res : (res.data || []);
+      setEmployees(list);
+      // Try to find linked employee by email first, then by name
+      let emp = list.find(e => e.email === user?.email);
+      if (!emp) emp = list.find(e => e.name === user?.name);
+      if (emp) {
+        setEmployee(emp);
+      } else if (list.length > 0) {
+        setShowEmpSelect(true);
+      }
+    } catch (err) { console.error(err); }
+  };
 
   const checkPermissions = async () => {
     try {
@@ -43,8 +59,7 @@ export default function Attendance() {
         setLocPerm(lp.state); setCamPerm(cp.state);
         if (lp.state === 'granted' && cp.state === 'granted') { getLocation(); return; }
       }
-      const dismissed = sessionStorage.getItem('att_perm_skip');
-      if (!dismissed) setShowPermModal(true);
+      if (!sessionStorage.getItem('att_perm_skip')) setShowPermModal(true);
       else getLocation();
     } catch { getLocation(); }
   };
@@ -53,17 +68,14 @@ export default function Attendance() {
     if (!navigator.geolocation) { setLocationError('Browser tidak mendukung GPS'); setLocPerm('denied'); return; }
     navigator.geolocation.getCurrentPosition(
       (pos) => { setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setLocationError(''); setLocPerm('granted'); },
-      (err) => { setLocPerm('denied'); setLocationError('Izin lokasi ditolak. Absensi tetap bisa dilakukan tanpa GPS.'); },
+      () => { setLocPerm('denied'); setLocationError('Izin lokasi ditolak. Absensi tetap bisa dilakukan.'); },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   };
 
   const requestCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
-      stream.getTracks().forEach(t => t.stop());
-      setCamPerm('granted');
-    } catch { setCamPerm('denied'); }
+    try { const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } }); s.getTracks().forEach(t => t.stop()); setCamPerm('granted'); }
+    catch { setCamPerm('denied'); }
   };
 
   const handlePermNext = () => {
@@ -83,10 +95,7 @@ export default function Attendance() {
   const validateGeofence = (loc) => {
     if (!loc || !officeLocations.length) return;
     let nearest = null, minDist = Infinity;
-    for (const ol of officeLocations) {
-      const dist = haversine(loc.lat, loc.lng, ol.latitude, ol.longitude);
-      if (dist < minDist) { minDist = dist; nearest = ol; }
-    }
+    for (const ol of officeLocations) { const dist = haversine(loc.lat, loc.lng, ol.latitude, ol.longitude); if (dist < minDist) { minDist = dist; nearest = ol; } }
     setGeofenceStatus({ inRange: nearest ? minDist <= nearest.radius_meters : false, distance: Math.round(minDist), location: nearest });
   };
 
@@ -96,15 +105,19 @@ export default function Attendance() {
   const loadToday = async () => {
     try {
       const r = await api.get('/attendance?date=' + new Date().toISOString().slice(0, 10));
-      const rec = (Array.isArray(r) ? r : []).find(a => a.employee_name === user.name);
-      setTodayStatus(rec || null);
+      const list = Array.isArray(r) ? r : (r.data || []);
+      if (employee) {
+        const rec = list.find(a => a.employee_id === employee.id);
+        setTodayStatus(rec || null);
+      }
     } catch {}
   };
 
   const loadHistory = async () => {
-    try { const r = await api.get('/attendance?date=' + selectedDate); setHistory(Array.isArray(r) ? r : []); } catch {}
+    try { const r = await api.get('/attendance?date=' + selectedDate); setHistory(Array.isArray(r) ? r : (r.data || [])); } catch {}
   };
   useEffect(() => { loadHistory(); }, [selectedDate]);
+  useEffect(() => { if (employee) loadToday(); }, [employee]);
 
   const startCamera = async () => {
     try {
@@ -112,10 +125,7 @@ export default function Attendance() {
       streamRef.current = stream;
       if (videoRef.current) videoRef.current.srcObject = stream;
       setStatus('capturing');
-    } catch (err) {
-      toast('Gagal akses kamera: ' + err.message, 'error');
-      setStatus('error');
-    }
+    } catch (err) { toast('Gagal akses kamera: ' + err.message, 'error'); setStatus('error'); }
   };
 
   const stopCamera = () => {
@@ -124,27 +134,25 @@ export default function Attendance() {
   };
 
   const handleAbsen = async (type) => {
+    if (!employee) { toast('Pilih karyawan terlebih dahulu', 'error'); return; }
     if (status !== 'capturing') { await startCamera(); return; }
     const canvas = document.createElement('canvas'); canvas.width = 480; canvas.height = 480;
     const ctx = canvas.getContext('2d');
     if (videoRef.current) ctx.drawImage(videoRef.current, 0, 0, 480, 480);
     const photo = canvas.toDataURL('image/jpeg', 0.7);
-    const now = new Date();
-    const timeStr = now.toTimeString().slice(0, 8);
+    const now = new Date(); const timeStr = now.toTimeString().slice(0, 8);
     const today = now.toISOString().slice(0, 10);
     const geo = geofenceStatus || {};
     try {
-      const emps = await api.get('/employees');
-      const emp = (Array.isArray(emps) ? emps : []).find(e => e.name === user.name);
-      if (!emp) { toast('Data karyawan tidak ditemukan', 'error'); return; }
       if (type === 'checkin') {
-        await api.post('/attendance', { employee_id: emp.id, date: today, check_in: timeStr, status: 'Hadir', check_in_lat: location?.lat, check_in_lng: location?.lng, check_in_photo: photo, check_in_location_id: geo.location?.id, check_in_distance: geo.distance });
+        await api.post('/attendance', { employee_id: employee.id, date: today, check_in: timeStr, status: 'Hadir', check_in_lat: location?.lat, check_in_lng: location?.lng, check_in_photo: photo, check_in_location_id: geo.location?.id, check_in_distance: geo.distance });
         toast('Absen masuk berhasil! ' + timeStr);
       } else {
         const r = await api.get('/attendance?date=' + today);
-        const rec = (Array.isArray(r) ? r : []).find(a => a.employee_id === emp.id);
+        const list = Array.isArray(r) ? r : (r.data || []);
+        const rec = list.find(a => a.employee_id === employee.id);
         if (rec) await api.put('/attendance/' + rec.id, { ...rec, check_out: timeStr, check_out_lat: location?.lat, check_out_lng: location?.lng, check_out_photo: photo, check_out_location_id: geo.location?.id, check_out_distance: geo.distance });
-        toast('Absen keluar berhasil! ' + timeStr);
+        else toast('Belum ada record masuk hari ini', 'error');
       }
       setStatus('success'); stopCamera(); loadToday(); loadHistory();
     } catch (err) { toast('Gagal: ' + err.message, 'error'); }
@@ -155,17 +163,17 @@ export default function Attendance() {
 
   return (
     <div>
-      {!isSecure && (
+      {!window.isSecureContext && (
         <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 text-sm rounded-lg p-3 mb-4 flex items-center gap-2">
-          <AlertTriangle size={16} /> Camera & GPS memerlukan HTTPS. Beberapa fitur mungkin terbatas di HTTP.
+          <AlertTriangle size={16} /> Camera & GPS memerlukan HTTPS.
         </div>
       )}
 
       {showPermModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl">
             {permStep === 0 && (
-              <div className="p-6 text-center">
+              <div className="text-center">
                 <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4"><Shield size={32} className="text-blue-500" /></div>
                 <h3 className="text-lg font-bold mb-2">Selamat Datang! 👋</h3>
                 <p className="text-sm text-gray-500 mb-6">Untuk absensi, kami butuh izin <strong>Lokasi GPS</strong> dan <strong>Kamera</strong>.</p>
@@ -174,24 +182,22 @@ export default function Attendance() {
               </div>
             )}
             {permStep === 1 && (
-              <div className="p-6 text-center">
-                <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${locPerm === 'granted' ? 'bg-green-100' : locPerm === 'denied' ? 'bg-red-100' : 'bg-blue-100'}`}>
-                  {locPerm === 'granted' ? <CheckCircle size={32} className="text-green-500" /> : locPerm === 'denied' ? <XCircle size={32} className="text-red-500" /> : <MapPin size={32} className="text-blue-500 animate-pulse" />}
+              <div className="text-center">
+                <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${locPerm === 'granted' ? 'bg-green-100' : 'bg-blue-100'}`}>
+                  {locPerm === 'granted' ? <CheckCircle size={32} className="text-green-500" /> : <MapPin size={32} className="text-blue-500 animate-pulse" />}
                 </div>
-                <h3 className="text-lg font-bold mb-2">{locPerm === 'granted' ? 'Lokasi Aktif ✅' : locPerm === 'denied' ? 'Lokasi Ditolak' : 'Aktifkan Lokasi GPS'}</h3>
-                <p className="text-sm text-gray-500 mb-4">{locPerm === 'granted' ? 'Berhasil!' : locPerm === 'denied' ? 'Anda tetap bisa absen tanpa GPS.' : 'Klik tombol lalu pilih "Izinkan".'}</p>
-                {locPerm === 'unknown' && <button onClick={requestLocation} className="w-full bg-blue-500 text-white py-3 rounded-xl font-medium hover:bg-blue-600 mb-2">📍 Izinkan Lokasi</button>}
+                <h3 className="text-lg font-bold mb-2">{locPerm === 'granted' ? 'Lokasi Aktif ✅' : 'Aktifkan Lokasi GPS'}</h3>
+                {locPerm !== 'granted' && <button onClick={requestLocation} className="w-full bg-blue-500 text-white py-3 rounded-xl font-medium hover:bg-blue-600 mb-2">📍 Izinkan Lokasi</button>}
                 <button onClick={handlePermNext} className="w-full text-blue-500 py-2 text-sm font-medium">Lanjut →</button>
               </div>
             )}
             {permStep === 2 && (
-              <div className="p-6 text-center">
-                <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${camPerm === 'granted' ? 'bg-green-100' : camPerm === 'denied' ? 'bg-red-100' : 'bg-blue-100'}`}>
-                  {camPerm === 'granted' ? <CheckCircle size={32} className="text-green-500" /> : camPerm === 'denied' ? <XCircle size={32} className="text-red-500" /> : <Camera size={32} className="text-blue-500 animate-pulse" />}
+              <div className="text-center">
+                <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${camPerm === 'granted' ? 'bg-green-100' : 'bg-blue-100'}`}>
+                  {camPerm === 'granted' ? <CheckCircle size={32} className="text-green-500" /> : <Camera size={32} className="text-blue-500 animate-pulse" />}
                 </div>
-                <h3 className="text-lg font-bold mb-2">{camPerm === 'granted' ? 'Kamera Aktif ✅' : camPerm === 'denied' ? 'Kamera Ditolak' : 'Aktifkan Kamera'}</h3>
-                <p className="text-sm text-gray-500 mb-4">{camPerm === 'granted' ? 'Berhasil!' : camPerm === 'denied' ? 'Anda tetap bisa absen tanpa foto.' : 'Klik tombol lalu pilih "Izinkan".'}</p>
-                {camPerm === 'unknown' && <button onClick={requestCamera} className="w-full bg-blue-500 text-white py-3 rounded-xl font-medium hover:bg-blue-600 mb-2">📸 Izinkan Kamera</button>}
+                <h3 className="text-lg font-bold mb-2">{camPerm === 'granted' ? 'Kamera Aktif ✅' : 'Aktifkan Kamera'}</h3>
+                {camPerm !== 'granted' && <button onClick={requestCamera} className="w-full bg-blue-500 text-white py-3 rounded-xl font-medium hover:bg-blue-600 mb-2">📸 Izinkan Kamera</button>}
                 <button onClick={handlePermNext} className="w-full bg-blue-500 text-white py-3 rounded-xl font-medium hover:bg-blue-600">Mulai Absensi →</button>
               </div>
             )}
@@ -199,7 +205,32 @@ export default function Attendance() {
         </div>
       )}
 
-      <h2 className="text-xl font-bold text-gray-800 mb-6">{user?.role === 'Staff' ? 'Kehadiran Saya' : 'Absensi'}</h2>
+      <h2 className="text-xl font-bold text-gray-800 mb-6">Absensi</h2>
+
+      {/* Employee Selection */}
+      {!employee && !showEmpSelect && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4 text-sm text-yellow-700">
+          ⚠️ Akun Anda belum terhubung ke data karyawan. Hubungi admin.
+          <button onClick={() => setShowEmpSelect(true)} className="ml-2 text-blue-500 underline">Pilih manual</button>
+        </div>
+      )}
+      {(showEmpSelect || !employee) && employees.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-2">Pilih Karyawan Anda *</label>
+          <select value={employee?.id || ''} onChange={e => { const emp = employees.find(x => x.id === Number(e.target.value)); setEmployee(emp || null); setShowEmpSelect(false); }} className="w-full px-3 py-2 border rounded-lg text-sm">
+            <option value="">-- Pilih --</option>
+            {employees.filter(e => e.status !== 'Nonaktif').map(e => <option key={e.id} value={e.id}>{e.name} — {e.position || e.email}</option>)}
+          </select>
+          <p className="text-xs text-gray-400 mt-1">Pilih sekali saja. Pilihan akan diingat otomatis.</p>
+        </div>
+      )}
+      {employee && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 text-sm text-blue-700 flex items-center justify-between">
+          <span>👤 {employee.name} — {employee.position || employee.email}</span>
+          <button onClick={() => setShowEmpSelect(true)} className="text-blue-500 underline text-xs">Ganti</button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2"><Shield size={20} className="text-blue-500" /> Absensi</h3>
@@ -214,7 +245,7 @@ export default function Attendance() {
           <div className="bg-gray-50 rounded-xl p-4 mb-4 text-center">
             <div className="text-sm text-gray-500 mb-1">Status Hari Ini</div>
             <div className={`inline-block px-4 py-1.5 rounded-full text-sm font-medium ${isCheckedOut ? 'bg-gray-200 text-gray-600' : isCheckedIn ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'}`}>
-              {isCheckedOut ? 'Selesai' : isCheckedIn ? 'Sudah Masuk' : 'Belum Absen'}
+              {!employee ? 'Pilih Karyawan' : isCheckedOut ? 'Selesai' : isCheckedIn ? 'Sudah Masuk' : 'Belum Absen'}
             </div>
             {isCheckedIn && <div className="mt-2 text-xs text-gray-500">Masuk: {todayStatus.check_in}{isCheckedOut && ` • Keluar: ${todayStatus.check_out}`}</div>}
           </div>
@@ -225,17 +256,17 @@ export default function Attendance() {
             </div>
           </div>
           <div className="flex gap-3">
-            {!isCheckedIn ? (
+            {employee && !isCheckedIn ? (
               <button onClick={() => handleAbsen('checkin')} className="flex-1 bg-blue-500 text-white py-3 rounded-xl font-medium text-sm hover:bg-blue-600 flex items-center justify-center gap-2">
                 <Camera size={18} />{status === 'capturing' ? '📸 Ambil Foto & Masuk' : 'ABSEN MASUK'}
               </button>
-            ) : !isCheckedOut ? (
+            ) : employee && !isCheckedOut ? (
               <button onClick={() => handleAbsen('checkout')} className="flex-1 bg-orange-500 text-white py-3 rounded-xl font-medium text-sm hover:bg-orange-600 flex items-center justify-center gap-2">
                 <Camera size={18} />{status === 'capturing' ? '📸 Ambil Foto & Keluar' : 'ABSEN KELUAR'}
               </button>
-            ) : (
+            ) : employee ? (
               <div className="flex-1 bg-gray-100 text-gray-500 py-3 rounded-xl font-medium text-sm flex items-center justify-center gap-2"><CheckCircle size={18} /> Selesai</div>
-            )}
+            ) : null}
             {status === 'capturing' && <button onClick={stopCamera} className="px-4 py-3 bg-gray-200 rounded-xl"><CameraOff size={18} /></button>}
           </div>
         </div>

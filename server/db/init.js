@@ -379,7 +379,8 @@ const alters = [
   "ALTER TABLE attendance ADD COLUMN check_in_location_id INTEGER",
   "ALTER TABLE attendance ADD COLUMN check_out_location_id INTEGER",
   "ALTER TABLE attendance ADD COLUMN check_in_distance REAL",
-  "ALTER TABLE attendance ADD COLUMN check_out_distance REAL",
+  "ALTER TABLE attendance ADD COLUMN check_out_distance REAL",,
+  "ALTER TABLE employees ADD COLUMN user_id INTEGER"
 ];
 
 for (const sql of alters) {
