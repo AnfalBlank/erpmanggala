@@ -44,7 +44,7 @@ function createJournal(date, description, debitAccount, creditAccount, amount, r
 const maybeRole = (...roles) => roles.length ? roleMiddleware(...roles) : (req, res, next) => next();
 
 function getEmployeeIdForUser(req) {
-  const row = db.prepare('SELECT id FROM employees WHERE email = ?').get(req.user.email);
+  const row = db.prepare('SELECT id FROM employees WHERE user_id = ?').get(req.user.id) || db.prepare('SELECT id FROM employees WHERE email = ?').get(req.user.email);
   return row ? row.id : null;
 }
 
@@ -492,7 +492,7 @@ router.post('/attendance', roleMiddleware('Super Admin', 'Admin', 'Staff'), (req
     }
   }
 
-  const r = db.prepare('INSERT INTO attendance (employee_id,date,check_in,check_out,status,late_minutes,penalty_amount,check_in_lat,check_in_lng,check_in_photo,check_in_location_id,check_in_distance) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+  const r = db.prepare('INSERT INTO attendance (employee_id,date,check_in,check_out,status,late_minutes,penalty_amount,check_in_lat,check_in_lng,check_in_photo,check_in_location_id,check_in_distance) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')
     .run(req.body.employee_id, req.body.date, req.body.check_in, req.body.check_out, req.body.status || 'Hadir', lateMinutes, penaltyAmount, req.body.check_in_lat || null, req.body.check_in_lng || null, req.body.check_in_photo || null, req.body.check_in_location_id || null, req.body.check_in_distance || null);
   res.json(db.prepare('SELECT a.*,e.name as employee_name FROM attendance a LEFT JOIN employees e ON a.employee_id=e.id WHERE a.id=?').get(r.lastInsertRowid));
 });
