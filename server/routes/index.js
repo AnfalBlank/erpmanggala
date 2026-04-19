@@ -104,6 +104,19 @@ crud('projects', { writeRoles: ['Super Admin', 'Admin'] });
 crud('customers', { writeRoles: ['Super Admin', 'Admin'] });
 crud('vendors', { writeRoles: ['Super Admin', 'Admin'] });
 crud('employees', { writeRoles: ['Super Admin', 'Admin'] });
+
+// Auto-link: when employee is created, link to existing user or create user
+router.post('/employees-sync', roleMiddleware('Super Admin', 'Admin'), (req, res) => {
+  const { name, email, position, phone, salary, status } = req.body;
+  // Create employee
+  const r = db.prepare('INSERT INTO employees (name,email,position,phone,salary,status) VALUES (?,?,?,?,?,?)').run(name, email||'', position||'', phone||'', salary||0, status||'Aktif');
+  // Try to link to existing user
+  const user = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+  if (user) {
+    db.prepare('UPDATE employees SET user_id = ? WHERE id = ?').run(user.id, Number(r.lastInsertRowid));
+  }
+  res.json(db.prepare('SELECT * FROM employees WHERE id = ?').get(Number(r.lastInsertRowid)));
+});
 crud('invoices', { writeRoles: ['Super Admin', 'Admin', 'Finance'] });
 crud('purchases', { writeRoles: ['Super Admin', 'Admin', 'Finance'] });
 
@@ -762,6 +775,15 @@ router.get('/users', roleMiddleware('Super Admin'), (req, res) => {
 router.post('/users', roleMiddleware('Super Admin'), (req, res) => {
   const hash = bcrypt.hashSync(req.body.password || 'admin123', 10);
   const r = db.prepare('INSERT INTO users (name,email,password_hash,role,status) VALUES (?,?,?,?,?)').run(req.body.name,req.body.email,hash,req.body.role||'Staff',req.body.status||'Aktif');
+  // Auto-create employee linked to this user
+  try {
+    const existing = db.prepare('SELECT id FROM employees WHERE email = ?').get(req.body.email);
+    if (!existing) {
+      db.prepare('INSERT INTO employees (name,email,position,status,user_id) VALUES (?,?,?,?,?)').run(req.body.name,req.body.email,req.body.role||'Staff',req.body.status||'Aktif',Number(r.lastInsertRowid));
+    } else {
+      db.prepare('UPDATE employees SET user_id = ? WHERE id = ?').run(Number(r.lastInsertRowid), existing.id);
+    }
+  } catch(e) { console.error('Auto-create employee failed:', e.message); }
   res.json({ id: r.lastInsertRowid, name: req.body.name, email: req.body.email, role: req.body.role });
 });
 router.put('/users/:id', roleMiddleware('Super Admin'), (req, res) => {
