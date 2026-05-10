@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import { Search, FileText } from 'lucide-react';
+import Modal from '../components/Modal';
 
 const actionColors = { INSERT: 'bg-green-100 text-green-700', UPDATE: 'bg-blue-100 text-blue-700', DELETE: 'bg-red-100 text-red-700' };
 
@@ -11,6 +12,7 @@ export default function AuditLog() {
   const [tableName, setTableName] = useState('');
   const [action, setAction] = useState('');
   const [page, setPage] = useState(1);
+  const [detailLog, setDetailLog] = useState(null);
 
   const load = () => {
     const params = new URLSearchParams({ search, table_name: tableName, action, page, limit: 50 });
@@ -20,9 +22,18 @@ export default function AuditLog() {
 
   const tables = ['users','employees','customers','vendors','projects','invoices','purchases','inventory_items','warehouses','payroll','leave_requests','attendance','shifts','transactions','bank_accounts'];
 
+  const formatJSON = (str) => {
+    if (!str) return '-';
+    try {
+      return JSON.stringify(JSON.parse(str), null, 2);
+    } catch {
+      return str;
+    }
+  };
+
   return (
     <div>
-      <h2 className="text-xl font-bold text-gray-800 mb-6">Audit Log</h2>
+      <h2 className="text-xl font-semibold text-gray-900 mb-6">Audit Log</h2>
       <div className="bg-white rounded-xl border border-gray-200">
         <div className="p-4 border-b border-gray-100 flex flex-wrap gap-3">
           <div className="relative w-full sm:w-64">
@@ -52,7 +63,7 @@ export default function AuditLog() {
             </tr></thead>
             <tbody className="divide-y divide-gray-100">
               {data.map(log => (
-                <tr key={log.id} className="hover:bg-gray-50">
+                <tr key={log.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => setDetailLog(log)}>
                   <td className="px-4 py-3 text-gray-600 text-xs">{log.created_at}</td>
                   <td className="px-4 py-3 font-medium">{log.user_name}</td>
                   <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded text-xs font-medium ${actionColors[log.action] || 'bg-gray-100'}`}>{log.action}</span></td>
@@ -68,7 +79,7 @@ export default function AuditLog() {
         {/* Mobile cards */}
         <div className="lg:hidden divide-y divide-gray-100">
           {data.map(log => (
-            <div key={log.id} className="p-4">
+            <div key={log.id} className="p-4 cursor-pointer hover:bg-gray-50" onClick={() => setDetailLog(log)}>
               <div className="flex items-center justify-between mb-1">
                 <span className="font-medium text-sm">{log.user_name}</span>
                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${actionColors[log.action] || 'bg-gray-100'}`}>{log.action}</span>
@@ -82,6 +93,50 @@ export default function AuditLog() {
           Total: {total} records
         </div>
       </div>
+
+      {/* Detail Modal */}
+      <Modal open={!!detailLog} onClose={() => setDetailLog(null)} title="Detail Audit Log" size="lg">
+        {detailLog && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-gray-400 text-xs uppercase tracking-wider">Waktu</span>
+                <div className="font-medium">{detailLog.created_at}</div>
+              </div>
+              <div>
+                <span className="text-gray-400 text-xs uppercase tracking-wider">User</span>
+                <div className="font-medium">{detailLog.user_name}</div>
+              </div>
+              <div>
+                <span className="text-gray-400 text-xs uppercase tracking-wider">Aksi</span>
+                <div><span className={`px-2 py-0.5 rounded text-xs font-medium ${actionColors[detailLog.action] || 'bg-gray-100'}`}>{detailLog.action}</span></div>
+              </div>
+              <div>
+                <span className="text-gray-400 text-xs uppercase tracking-wider">Tabel</span>
+                <div className="font-medium">{detailLog.table_name} #{detailLog.record_id}</div>
+              </div>
+            </div>
+
+            {detailLog.old_data && (
+              <div>
+                <span className="text-gray-400 text-xs uppercase tracking-wider block mb-1">Data Lama</span>
+                <pre className="bg-red-50 border border-red-200 rounded-xl p-4 text-xs overflow-auto max-h-60 text-red-800 whitespace-pre-wrap">{formatJSON(detailLog.old_data)}</pre>
+              </div>
+            )}
+
+            {detailLog.new_data && (
+              <div>
+                <span className="text-gray-400 text-xs uppercase tracking-wider block mb-1">Data Baru</span>
+                <pre className="bg-green-50 border border-green-200 rounded-xl p-4 text-xs overflow-auto max-h-60 text-green-800 whitespace-pre-wrap">{formatJSON(detailLog.new_data)}</pre>
+              </div>
+            )}
+
+            {!detailLog.old_data && !detailLog.new_data && (
+              <div className="text-center py-4 text-gray-400 text-sm">Tidak ada detail data</div>
+            )}
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

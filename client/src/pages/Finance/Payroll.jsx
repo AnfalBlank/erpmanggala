@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
-import { DollarSign, TrendingUp, TrendingDown, Wallet, CheckCircle, BarChart3, FileDown, Printer, X, Edit2, Mail } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, Wallet, CheckCircle, BarChart3, FileDown, Printer, Edit2, Mail, Eye } from 'lucide-react';
 import StatusBadge from '../../components/StatusBadge';
 import ResponsiveTable from '../../components/ResponsiveTable';
 import { exportPayrollPDF } from '../../lib/exportUtils';
 import CurrencyInput from '../../components/CurrencyInput';
 import { formatRp } from '../../lib/currency';
+import Modal, { FormField, BtnPrimary, BtnSecondary } from '../../components/Modal';
 
 const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
+const fmtDate = (d) => d ? new Date(d).toLocaleString('id-ID') : '-';
 
 export default function Payroll() {
   const [data, setData] = useState([]);
@@ -20,6 +22,8 @@ export default function Payroll() {
   const [editForm, setEditForm] = useState({});
   const [bankAccountId, setBankAccountId] = useState('');
   const [sendingSlip, setSendingSlip] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [detail, setDetail] = useState(null);
 
   const load = () => {
     api.get(`/payroll?period=${period}`).then(res => setData(res.data || [])).catch(console.error);
@@ -79,9 +83,12 @@ export default function Payroll() {
   };
 
   const handleEditSave = async () => {
-    await api.put(`/payroll/${editId}`, editForm);
-    setEditId(null);
-    load();
+    setSaving(true);
+    try {
+      await api.put(`/payroll/${editId}`, editForm);
+      setEditId(null);
+      load();
+    } finally { setSaving(false); }
   };
 
   const handleSendPayslip = async (p) => {
@@ -103,7 +110,28 @@ export default function Payroll() {
   const totalDenda = data.reduce((s, p) => s + (p.late_penalty || 0), 0);
 
   const columns = [
-    { key: 'employee_name', label: 'Karyawan' },
+    {
+      key: 'employee_name',
+      label: 'Karyawan',
+      render: (r) => (
+        <div>
+          <div className="font-medium">{r.employee_name}</div>
+          <div className="text-[11px] text-gray-400 mt-0.5">
+            Generated: {r.generated_by || '-'} · {fmtDate(r.created_at)}
+          </div>
+          {r.approved_by && (
+            <div className="text-[11px] text-gray-400">
+              Disetujui: {r.approved_by} · {fmtDate(r.approved_at)}
+            </div>
+          )}
+          {r.paid_by && (
+            <div className="text-[11px] text-gray-400">
+              Dibayar: {r.paid_by} · {fmtDate(r.paid_at)}
+            </div>
+          )}
+        </div>
+      ),
+    },
     { key: 'basic_salary', label: 'Gaji Pokok', render: r => fmt(r.basic_salary) },
     { key: 'allowances', label: 'Tunjangan', render: r => <span className="text-green-600">{fmt(r.allowances)}</span> },
     { key: 'overtime_pay', label: 'Lembur', render: r => <span className="text-blue-600">{fmt(r.overtime_pay || 0)}</span> },
@@ -119,14 +147,14 @@ export default function Payroll() {
   return (
     <div>
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
-        <h2 className="text-xl font-bold text-gray-800">Payroll</h2>
+        <h2 className="text-xl font-semibold text-gray-900">Payroll</h2>
         <div className="flex items-center gap-3 no-print flex-wrap">
           <input type="month" value={period} onChange={e => setPeriod(e.target.value)} className="px-3 py-2 border rounded-lg text-sm" />
           <select value={bankAccountId} onChange={e => setBankAccountId(e.target.value)} className="px-3 py-2 border rounded-lg text-sm">
             <option value="">Pilih Rekening Bayar</option>
             {accounts.map(a => <option key={a.id} value={a.id}>{a.name} ({a.bank})</option>)}
           </select>
-          <button onClick={handleGenerate} disabled={generating} className="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-600 flex items-center gap-2 disabled:opacity-50">
+          <button onClick={handleGenerate} disabled={generating} className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors flex items-center gap-2 disabled:opacity-50">
             <BarChart3 size={16} /> {generating ? 'Generating...' : 'Generate Payroll'}
           </button>
         </div>
@@ -159,7 +187,7 @@ export default function Payroll() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200">
+      <div className="bg-white rounded-2xl border border-gray-200">
         <ResponsiveTable
           columns={columns}
           data={data}
@@ -171,11 +199,12 @@ export default function Payroll() {
           }
           renderActions={(p) => (
             <div className="flex gap-2 no-print">
-              <button onClick={() => exportPayrollPDF(p)} className="text-green-500 hover:text-green-700" title="Export PDF"><FileDown size={16} /></button>
-              <button onClick={() => handleSendPayslip(p)} disabled={sendingSlip} className="text-blue-500 hover:text-blue-700" title="📧 Kirim Slip"><Mail size={16} /></button>
+              <button onClick={() => setDetail(p)} className="p-1.5 hover:bg-blue-50 rounded-lg text-blue-500" title="Detail"><Eye size={16} /></button>
+              <button onClick={() => exportPayrollPDF(p)} className="p-1.5 hover:bg-blue-50 rounded-lg text-green-500" title="Export PDF"><FileDown size={16} /></button>
+              <button onClick={() => handleSendPayslip(p)} disabled={sendingSlip} className="p-1.5 hover:bg-blue-50 rounded-lg text-blue-500" title="📧 Kirim Slip"><Mail size={16} /></button>
               {p.status === 'Draft' && (
                 <>
-                  <button onClick={() => handleEdit(p)} className="text-blue-500 hover:text-blue-700" title="Edit"><Edit2 size={16} /></button>
+                  <button onClick={() => handleEdit(p)} className="p-1.5 hover:bg-blue-50 rounded-lg text-blue-500" title="Edit"><Edit2 size={16} /></button>
                   <button onClick={() => handleApprove(p.id)} className="text-yellow-600 hover:text-yellow-800 text-xs font-medium">Approve</button>
                 </>
               )}
@@ -189,35 +218,108 @@ export default function Payroll() {
         />
       </div>
 
-      {editId && (
-        <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-          <div className="bg-white rounded-t-2xl sm:rounded-xl p-5 sm:p-6 w-full sm:max-w-md max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4"><h3 className="font-semibold text-lg">Edit Payroll</h3><button onClick={() => setEditId(null)}><X size={20} /></button></div>
-            <div className="space-y-3">
-              {[
-                { key: 'basic_salary', label: 'Gaji Pokok' },
-                { key: 'transport_allowance', label: 'Tunjangan Transport' },
-                { key: 'meal_allowance', label: 'Tunjangan Makan' },
-                { key: 'overtime_hours', label: 'Jam Lembur' },
-                { key: 'overtime_pay', label: 'Upah Lembur' },
-                { key: 'bpjs_kesehatan', label: 'BPJS Kesehatan' },
-                { key: 'bpjs_tk', label: 'BPJS TK' },
-                { key: 'pph21', label: 'PPh 21' },
-                { key: 'late_penalty', label: 'Denda Keterlambatan' },
-              ].map(f => (
-                <div key={f.key}>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{f.label}</label>
-                  <CurrencyInput value={editForm[f.key] || 0} onChange={val => setEditForm({...editForm, [f.key]: val})} />
-                </div>
-              ))}
-              <div className="flex gap-3 justify-end mt-4">
-                <button onClick={() => setEditId(null)} className="px-4 py-2 border rounded-lg text-sm">Batal</button>
-                <button onClick={handleEditSave} className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm">Simpan</button>
+      {/* Detail Modal */}
+      <Modal open={!!detail} onClose={() => setDetail(null)} title="Detail Payroll" size="lg"
+        footer={<BtnSecondary onClick={() => setDetail(null)}>Tutup</BtnSecondary>}>
+        {detail && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="text-xs text-gray-400">Karyawan</div>
+                <div className="font-medium">{detail.employee_name}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-400">Periode</div>
+                <div className="font-medium">{detail.period}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-400">Gaji Pokok</div>
+                <div className="font-medium">{fmt(detail.basic_salary)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-400">Tunjangan Transport</div>
+                <div className="font-medium text-green-600">{fmt(detail.transport_allowance || 0)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-400">Tunjangan Makan</div>
+                <div className="font-medium text-green-600">{fmt(detail.meal_allowance || 0)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-400">Lembur ({detail.overtime_hours || 0} jam)</div>
+                <div className="font-medium text-blue-600">{fmt(detail.overtime_pay || 0)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-400">BPJS Kesehatan</div>
+                <div className="font-medium text-orange-600">{fmt(detail.bpjs_kesehatan || 0)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-400">BPJS TK</div>
+                <div className="font-medium text-orange-600">{fmt(detail.bpjs_tk || 0)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-400">PPh 21</div>
+                <div className="font-medium text-red-600">{fmt(detail.pph21 || 0)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-400">Denda Keterlambatan</div>
+                <div className="font-medium text-red-600">{fmt(detail.late_penalty || 0)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-400">Total Potongan</div>
+                <div className="font-medium text-red-700">{fmt(detail.deductions)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-400">Gaji Bersih</div>
+                <div className="font-bold text-lg">{fmt(detail.net_salary)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-400">Status</div>
+                <div><StatusBadge status={detail.status} /></div>
               </div>
             </div>
+            <div className="border-t border-gray-100 pt-4 space-y-2">
+              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Tracking</div>
+              <div className="text-[11px] text-gray-400">
+                Generated oleh: {detail.generated_by || '-'} · {fmtDate(detail.created_at)}
+              </div>
+              {detail.approved_by && (
+                <div className="text-[11px] text-gray-400">
+                  Disetujui oleh: {detail.approved_by} · {fmtDate(detail.approved_at)}
+                </div>
+              )}
+              {detail.paid_by && (
+                <div className="text-[11px] text-gray-400">
+                  Dibayar oleh: {detail.paid_by} · {fmtDate(detail.paid_at)}
+                </div>
+              )}
+            </div>
           </div>
+        )}
+      </Modal>
+
+      <Modal open={!!editId} onClose={() => setEditId(null)} title="Edit Payroll"
+        footer={<>
+          <BtnSecondary onClick={() => setEditId(null)}>Batal</BtnSecondary>
+          <BtnPrimary loading={saving} onClick={handleEditSave} disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan'}</BtnPrimary>
+        </>}>
+        <div className="space-y-3">
+          {[
+            { key: 'basic_salary', label: 'Gaji Pokok' },
+            { key: 'transport_allowance', label: 'Tunjangan Transport' },
+            { key: 'meal_allowance', label: 'Tunjangan Makan' },
+            { key: 'overtime_hours', label: 'Jam Lembur' },
+            { key: 'overtime_pay', label: 'Upah Lembur' },
+            { key: 'bpjs_kesehatan', label: 'BPJS Kesehatan' },
+            { key: 'bpjs_tk', label: 'BPJS TK' },
+            { key: 'pph21', label: 'PPh 21' },
+            { key: 'late_penalty', label: 'Denda Keterlambatan' },
+          ].map(f => (
+            <FormField key={f.key} label={f.label}>
+              <CurrencyInput value={editForm[f.key] || 0} onChange={val => setEditForm({...editForm, [f.key]: val})} />
+            </FormField>
+          ))}
         </div>
-      )}
+      </Modal>
     </div>
   );
 }

@@ -1,15 +1,18 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
-import { CheckCircle, XCircle, Clock, FileText, Search } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, FileText, Search, Eye } from 'lucide-react';
 import StatusBadge from '../../components/StatusBadge';
+import Modal, { BtnSecondary } from '../../components/Modal';
 
 const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
+const fmtDate = (d) => d ? new Date(d).toLocaleString('id-ID') : '-';
 
 export default function Approval() {
   const [pending, setPending] = useState([]);
   const [history, setHistory] = useState([]);
   const [tab, setTab] = useState('pending');
   const [search, setSearch] = useState('');
+  const [detail, setDetail] = useState(null);
 
   const load = () => {
     api.get('/expense-requests?status=Pending').then(res => setPending(res.data || [])).catch(() => setPending([]));
@@ -30,7 +33,7 @@ export default function Approval() {
 
   return (
     <div>
-      <h2 className="text-xl font-bold text-gray-800 mb-6">Approval Pengajuan Biaya</h2>
+      <h2 className="text-xl font-semibold text-gray-900 mb-6">Approval Pengajuan Biaya</h2>
       <div className="flex gap-2 mb-4">
         <button onClick={() => setTab('pending')} className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${tab === 'pending' ? 'bg-orange-500 text-white' : 'bg-white border text-gray-600 hover:bg-gray-50'}`}>
           <Clock size={16} /> Menunggu Persetujuan {pending.length > 0 && <span className="bg-white/20 px-1.5 py-0.5 rounded text-xs">{pending.length}</span>}
@@ -64,19 +67,32 @@ export default function Approval() {
                 <tr key={r.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3">{r.date || r.created_at?.slice(0, 10)}</td>
                   <td className="px-4 py-3 font-medium">{r.project_name || '-'}</td>
-                  <td className="px-4 py-3">{r.description || '-'}</td>
+                  <td className="px-4 py-3">
+                    <div>{r.description || '-'}</div>
+                    <div className="text-[11px] text-gray-400 mt-0.5">
+                      Diajukan: {r.requested_by || '-'} · {fmtDate(r.created_at)}
+                    </div>
+                    {r.approved_by_name && (
+                      <div className="text-[11px] text-gray-400">
+                        {r.status === 'Approved' ? 'Disetujui' : 'Ditolak'}: {r.approved_by_name} · {fmtDate(r.approved_at)}
+                      </div>
+                    )}
+                  </td>
                   <td className="px-4 py-3">{r.rab_item || '-'}</td>
                   <td className="px-4 py-3">{r.requested_by || '-'}</td>
                   <td className="px-4 py-3 font-medium">{fmt(r.amount || 0)}</td>
                   <td className="px-4 py-3">
-                    {tab === 'pending' ? (
-                      <div className="flex gap-2">
-                        <button onClick={() => handleAction(r.id, 'Approved')} className="px-3 py-1 rounded-lg bg-green-500 text-white text-xs font-medium hover:bg-green-600 flex items-center gap-1"><CheckCircle size={14} /> Approve</button>
-                        <button onClick={() => handleAction(r.id, 'Rejected')} className="px-3 py-1 rounded-lg bg-red-500 text-white text-xs font-medium hover:bg-red-600 flex items-center gap-1"><XCircle size={14} /> Reject</button>
-                      </div>
-                    ) : (
-                      <StatusBadge status={r.status} />
-                    )}
+                    <div className="flex gap-2">
+                      <button onClick={() => setDetail(r)} className="text-blue-500 hover:text-blue-700"><Eye size={18} /></button>
+                      {tab === 'pending' ? (
+                        <>
+                          <button onClick={() => handleAction(r.id, 'Approved')} className="px-3 py-1 rounded-lg bg-green-500 text-white text-xs font-medium hover:bg-green-600 flex items-center gap-1"><CheckCircle size={14} /> Approve</button>
+                          <button onClick={() => handleAction(r.id, 'Rejected')} className="px-3 py-1 rounded-lg bg-red-500 text-white text-xs font-medium hover:bg-red-600 flex items-center gap-1"><XCircle size={14} /> Reject</button>
+                        </>
+                      ) : (
+                        <StatusBadge status={r.status} />
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -93,6 +109,52 @@ export default function Approval() {
           </table>
         </div>
       </div>
+
+      {/* Detail Modal */}
+      <Modal open={!!detail} onClose={() => setDetail(null)} title="Detail Pengajuan Biaya"
+        footer={<BtnSecondary onClick={() => setDetail(null)}>Tutup</BtnSecondary>}>
+        {detail && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="text-xs text-gray-400">Tanggal</div>
+                <div className="font-medium">{detail.date || detail.created_at?.slice(0, 10)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-400">Proyek</div>
+                <div className="font-medium">{detail.project_name || '-'}</div>
+              </div>
+              <div className="col-span-2">
+                <div className="text-xs text-gray-400">Deskripsi</div>
+                <div className="font-medium">{detail.description || '-'}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-400">Item RAB</div>
+                <div className="font-medium">{detail.rab_item || '-'}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-400">Jumlah</div>
+                <div className="font-medium">{fmt(detail.amount || 0)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-400">Status</div>
+                <div><StatusBadge status={detail.status} /></div>
+              </div>
+            </div>
+            <div className="border-t border-gray-100 pt-4 space-y-2">
+              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Tracking</div>
+              <div className="text-[11px] text-gray-400">
+                Diajukan oleh: {detail.requested_by || '-'} · {fmtDate(detail.created_at)}
+              </div>
+              {detail.approved_by_name && (
+                <div className="text-[11px] text-gray-400">
+                  {detail.status === 'Approved' ? 'Disetujui' : 'Ditolak'} oleh: {detail.approved_by_name} · {fmtDate(detail.approved_at)}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

@@ -1,13 +1,48 @@
-const statusColors = {
-  Planning: 'bg-blue-100 text-blue-700', Sent: 'bg-blue-100 text-blue-700', Draft: 'bg-blue-100 text-blue-700',
-  Pending: 'bg-yellow-100 text-yellow-700', Ordered: 'bg-yellow-100 text-yellow-700', Partial: 'bg-yellow-100 text-yellow-700',
-  Running: 'bg-green-100 text-green-700', Aktif: 'bg-green-100 text-green-700', Paid: 'bg-green-100 text-green-700',
-  Received: 'bg-green-100 text-green-700', Approved: 'bg-green-100 text-green-700', Hadir: 'bg-green-100 text-green-700',
-  Done: 'bg-gray-100 text-gray-600', Cancelled: 'bg-gray-100 text-gray-600', Rejected: 'bg-red-100 text-red-600',
-  Izin: 'bg-yellow-100 text-yellow-700', Sakit: 'bg-orange-100 text-orange-700',
+const statusMap = {
+  Planning: 'status-planning',
+  Running: 'status-running',
+  Done: 'status-done',
+  Draft: 'status-draft',
+  Sent: 'status-sent',
+  Paid: 'status-paid',
+  Cancelled: 'status-cancelled',
+  Pending: 'status-pending',
+  Approved: 'status-approved',
+  Rejected: 'status-rejected',
+  Hadir: 'status-hadir',
+  Terlambat: 'status-terlambat',
+  Aktif: 'status-aktif',
+  Nonaktif: 'status-nonaktif',
+  Izin: 'status-pending',
+  Sakit: 'status-pending',
+  Alpha: 'status-cancelled',
+  Ordered: 'status-sent',
+  Partial: 'status-pending',
+  Received: 'status-approved',
+  Converted: 'status-done',
+  Lunas: 'status-paid',
+};
+
+const dotMap = {
+  Running: 'bg-emerald-500',
+  Aktif: 'bg-emerald-500',
+  Paid: 'bg-emerald-500',
+  Approved: 'bg-emerald-500',
+  Hadir: 'bg-emerald-500',
+  Pending: 'bg-amber-500',
+  Draft: 'bg-gray-400',
+  Cancelled: 'bg-red-500',
+  Rejected: 'bg-red-500',
 };
 
 export default function StatusBadge({ status }) {
-  const color = statusColors[status] || 'bg-gray-100 text-gray-600';
-  return <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${color}`}>{status}</span>;
+  if (!status) return <span className="badge status-done">-</span>;
+  const cls = statusMap[status] || 'status-done';
+  const dot = dotMap[status];
+  return (
+    <span className={`badge ${cls}`}>
+      {dot && <span className={`w-1.5 h-1.5 rounded-full ${dot} shrink-0`} />}
+      {status}
+    </span>
+  );
 }

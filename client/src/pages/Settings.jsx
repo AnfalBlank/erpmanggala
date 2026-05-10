@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import { useTranslation } from '../lib/i18n.jsx';
-import { Save, Mail, TestTube, ExternalLink } from 'lucide-react';
+import { Save, Mail, TestTube, ExternalLink, DollarSign, Clock } from 'lucide-react';
+import { inputClass, textareaClass } from '../components/Modal';
 
 export default function Settings() {
   const [settings, setSettings] = useState({});
@@ -44,8 +45,8 @@ export default function Settings() {
   return (
     <div>
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
-        <h2 className="text-xl font-bold text-gray-800">{t('settings.title')}</h2>
-        <button onClick={handleSave} className="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-600 flex items-center gap-2">
+        <h2 className="text-xl font-semibold text-gray-900">{t('settings.title')}</h2>
+        <button onClick={handleSave} className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors flex items-center gap-2">
           <Save size={16} /> {saved ? t('settings.saved') : t('common.save')}
         </button>
       </div>
@@ -55,38 +56,70 @@ export default function Settings() {
         <h3 className="font-semibold text-gray-700 mb-2">Perusahaan</h3>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings.companyName')}</label>
-          <input value={settings.company_name || ''} onChange={e => setSettings({...settings, company_name: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" />
+          <input value={settings.company_name || ''} onChange={e => setSettings({...settings, company_name: e.target.value})} className={inputClass} />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings.companyAddress')}</label>
-          <textarea value={settings.company_address || ''} onChange={e => setSettings({...settings, company_address: e.target.value})} rows={2} className="w-full px-3 py-2 border rounded-lg text-sm" />
+          <textarea value={settings.company_address || ''} onChange={e => setSettings({...settings, company_address: e.target.value})} rows={2} className={textareaClass} />
+        </div>
+      </div>
+
+      {/* Payroll Settings */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6 max-w-lg space-y-4 mb-6">
+        <h3 className="font-semibold text-gray-700 mb-2 flex items-center gap-2"><DollarSign size={18} /> Pengaturan Payroll</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">BPJS Kesehatan (%)</label>
+            <input type="number" step="0.1" value={settings.bpjs_kesehatan_rate || ''} onChange={e => setSettings({...settings, bpjs_kesehatan_rate: e.target.value})} className={inputClass} placeholder="1" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">BPJS TK (%)</label>
+            <input type="number" step="0.1" value={settings.bpjs_tk_rate || ''} onChange={e => setSettings({...settings, bpjs_tk_rate: e.target.value})} className={inputClass} placeholder="2" />
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Jatah Cuti Tahunan (hari)</label>
+          <input type="number" value={settings.default_annual_leave || ''} onChange={e => setSettings({...settings, default_annual_leave: e.target.value})} className={inputClass} placeholder="12" />
+        </div>
+      </div>
+
+      {/* Attendance Settings */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6 max-w-lg space-y-4 mb-6">
+        <h3 className="font-semibold text-gray-700 mb-2 flex items-center gap-2"><Clock size={18} /> Pengaturan Absensi</h3>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Shift Default</label>
+          <input value={settings.default_shift || ''} onChange={e => setSettings({...settings, default_shift: e.target.value})} className={inputClass} placeholder="08:00 - 17:00" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Toleransi Keterlambatan (menit)</label>
+          <input type="number" value={settings.late_tolerance || ''} onChange={e => setSettings({...settings, late_tolerance: e.target.value})} className={inputClass} placeholder="15" />
         </div>
       </div>
 
       {/* Email Settings */}
       <div className="bg-white rounded-xl border border-gray-200 p-6 max-w-lg space-y-4 mb-6">
         <h3 className="font-semibold text-gray-700 mb-2 flex items-center gap-2"><Mail size={18} /> {t('settings.emailSettings')}</h3>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings.smtpHost')}</label>
-            <input value={settings.smtp_host || ''} onChange={e => setSettings({...settings, smtp_host: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="smtp.gmail.com" />
+            <input value={settings.smtp_host || ''} onChange={e => setSettings({...settings, smtp_host: e.target.value})} className={inputClass} placeholder="smtp.gmail.com" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings.smtpPort')}</label>
-            <input value={settings.smtp_port || ''} onChange={e => setSettings({...settings, smtp_port: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="587" />
+            <input value={settings.smtp_port || ''} onChange={e => setSettings({...settings, smtp_port: e.target.value})} className={inputClass} placeholder="587" />
           </div>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings.smtpUser')}</label>
-          <input value={settings.smtp_user || ''} onChange={e => setSettings({...settings, smtp_user: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="email@example.com" />
+          <input value={settings.smtp_user || ''} onChange={e => setSettings({...settings, smtp_user: e.target.value})} className={inputClass} placeholder="email@example.com" />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings.smtpPass')}</label>
-          <input type="password" value={settings.smtp_pass || ''} onChange={e => setSettings({...settings, smtp_pass: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" />
+          <input type="password" value={settings.smtp_pass || ''} onChange={e => setSettings({...settings, smtp_pass: e.target.value})} className={inputClass} />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings.fromEmail')}</label>
-          <input value={settings.from_email || ''} onChange={e => setSettings({...settings, from_email: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" />
+          <input value={settings.from_email || ''} onChange={e => setSettings({...settings, from_email: e.target.value})} className={inputClass} />
         </div>
         <div className="flex items-center gap-3">
           <button onClick={handleTestEmail} disabled={testing} className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm flex items-center gap-2 hover:bg-orange-600 disabled:opacity-50">

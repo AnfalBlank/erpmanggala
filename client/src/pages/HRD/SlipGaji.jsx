@@ -63,20 +63,65 @@ export default function SlipGaji() {
                   <StatusBadge status={selected.status} />
                 </div>
 
-                <div className="border-t border-gray-100 pt-4 space-y-4">
-                  <div className="flex justify-between py-2">
+                <div className="border-t border-gray-100 pt-4 space-y-1">
+                  {/* Income Section */}
+                  <div className="bg-green-50 rounded-xl px-4 py-2 mb-2">
+                    <span className="text-sm font-semibold text-green-700">Pendapatan</span>
+                  </div>
+                  <div className="flex justify-between py-2 px-4">
                     <span className="text-gray-500">Gaji Pokok</span>
                     <span className="font-medium">{fmt(selected.basic_salary)}</span>
                   </div>
-                  <div className="flex justify-between py-2 text-green-600">
-                    <span>+ Tunjangan</span>
-                    <span className="font-medium">{fmt(selected.allowances)}</span>
+                  <div className="flex justify-between py-2 px-4 text-green-600">
+                    <span>Tunjangan Transport</span>
+                    <span className="font-medium">{fmt(selected.transport_allowance || 0)}</span>
                   </div>
-                  <div className="flex justify-between py-2 text-red-600">
-                    <span>- Potongan</span>
-                    <span className="font-medium">{fmt(selected.deductions)}</span>
+                  <div className="flex justify-between py-2 px-4 text-green-600">
+                    <span>Tunjangan Makan</span>
+                    <span className="font-medium">{fmt(selected.meal_allowance || 0)}</span>
                   </div>
-                  <div className="border-t border-gray-200 pt-4 flex justify-between py-2">
+                  <div className="flex justify-between py-2 px-4 text-blue-600">
+                    <span>Lembur</span>
+                    <span className="font-medium">{fmt(selected.overtime_pay || 0)}</span>
+                  </div>
+                  <div className="flex justify-between py-2 px-4 border-t border-gray-100 font-semibold">
+                    <span className="text-gray-700">Total Pendapatan</span>
+                    <span className="text-green-700">{fmt((selected.basic_salary || 0) + (selected.transport_allowance || 0) + (selected.meal_allowance || 0) + (selected.overtime_pay || 0))}</span>
+                  </div>
+
+                  {/* Separator */}
+                  <div className="my-3 border-t-2 border-dashed border-gray-200"></div>
+
+                  {/* Deduction Section */}
+                  <div className="bg-red-50 rounded-xl px-4 py-2 mb-2">
+                    <span className="text-sm font-semibold text-red-700">Potongan</span>
+                  </div>
+                  <div className="flex justify-between py-2 px-4 text-red-600">
+                    <span>BPJS Kesehatan</span>
+                    <span className="font-medium">{fmt(selected.bpjs_kesehatan || 0)}</span>
+                  </div>
+                  <div className="flex justify-between py-2 px-4 text-red-600">
+                    <span>BPJS Ketenagakerjaan</span>
+                    <span className="font-medium">{fmt(selected.bpjs_tk || 0)}</span>
+                  </div>
+                  <div className="flex justify-between py-2 px-4 text-red-600">
+                    <span>PPh 21</span>
+                    <span className="font-medium">{fmt(selected.pph21 || 0)}</span>
+                  </div>
+                  <div className="flex justify-between py-2 px-4 text-red-600">
+                    <span>Denda Keterlambatan</span>
+                    <span className="font-medium">{fmt(selected.late_penalty || 0)}</span>
+                  </div>
+                  <div className="flex justify-between py-2 px-4 border-t border-gray-100 font-semibold">
+                    <span className="text-gray-700">Total Potongan</span>
+                    <span className="text-red-700">{fmt(selected.deductions || 0)}</span>
+                  </div>
+
+                  {/* Separator */}
+                  <div className="my-3 border-t-2 border-dashed border-gray-200"></div>
+
+                  {/* Net Salary */}
+                  <div className="bg-blue-50 rounded-xl px-4 py-3 flex justify-between items-center">
                     <span className="text-lg font-bold text-gray-800">Gaji Bersih</span>
                     <span className="text-lg font-bold text-blue-600">{fmt(selected.net_salary)}</span>
                   </div>

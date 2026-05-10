@@ -285,6 +285,24 @@ crud('coa_accounts', { readRoles: ['Super Admin', 'Admin', 'Finance'], writeRole
 crud('taxes', { readRoles: ['Super Admin', 'Admin', 'Finance'], writeRoles: ['Super Admin', 'Admin', 'Finance'] });
 crud('fixed_assets', { readRoles: ['Super Admin', 'Admin', 'Finance'], writeRoles: ['Super Admin', 'Admin', 'Finance'] });
 
+// ── Fixed Assets Depreciation with Journal ──
+router.post('/fixed_assets/depreciate', roleMiddleware('Super Admin', 'Admin', 'Finance'), (req, res) => {
+  const assets = db.prepare("SELECT * FROM fixed_assets WHERE useful_life > 0 AND purchase_price > 0").all();
+  let count = 0;
+  for (const asset of assets) {
+    const age = (Date.now() - new Date(asset.purchase_date).getTime()) / (365.25 * 24 * 3600 * 1000);
+    const depPerYear = asset.purchase_price / asset.useful_life;
+    const newValue = Math.max(0, Math.round(asset.purchase_price - depPerYear * age));
+    const depAmount = (asset.current_value || asset.purchase_price) - newValue;
+    if (depAmount > 0) {
+      db.prepare('UPDATE fixed_assets SET current_value = ? WHERE id = ?').run(newValue, asset.id);
+      createJournal(new Date().toISOString().slice(0,10), `Penyusutan ${asset.name}`, 'Beban Penyusutan', 'Akumulasi Penyusutan', depAmount, 'depreciation', asset.id);
+      count++;
+    }
+  }
+  res.json({ success: true, depreciated: count });
+});
+
 // ── Journal Entries (Feature C) ──
 router.get('/journals', roleMiddleware('Super Admin', 'Admin', 'Finance'), (req, res) => {
   const { from, to, account, reference_type, page = 1, limit = 50 } = req.query;
@@ -363,8 +381,8 @@ router.post('/payroll/generate', roleMiddleware('Super Admin', 'Admin'), (req, r
     const netSalary = basicSalary + totalAllowances - deductions;
 
     const r = db.prepare(
-      'INSERT INTO payroll (employee_id,period,basic_salary,allowances,deductions,net_salary,status,overtime_hours,overtime_pay,bpjs_kesehatan,bpjs_tk,pph21,late_penalty,transport_allowance,meal_allowance,bank_account_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
-    ).run(emp.id, period, basicSalary, totalAllowances, deductions, netSalary, 'Draft', 0, 0, bpjsKes, bpjsTK, pph21, latePenalty, allowances, mealAllowance, bank_account_id || null);
+      'INSERT INTO payroll (employee_id,period,basic_salary,allowances,deductions,net_salary,status,overtime_hours,overtime_pay,bpjs_kesehatan,bpjs_tk,pph21,late_penalty,transport_allowance,meal_allowance,bank_account_id,generated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+    ).run(emp.id, period, basicSalary, totalAllowances, deductions, netSalary, 'Draft', 0, 0, bpjsKes, bpjsTK, pph21, latePenalty, allowances, mealAllowance, bank_account_id || null, req.user.name);
 
     generated.push(r.lastInsertRowid);
   }
@@ -381,7 +399,22 @@ router.post('/payroll', roleMiddleware('Super Admin', 'Admin'), (req, res) => {
 router.put('/payroll/:id', roleMiddleware('Super Admin', 'Admin'), (req, res) => {
   const old = db.prepare('SELECT * FROM payroll WHERE id=?').get(req.params.id);
 
+  // Allow editing payroll fields
+  const fields = ['status','basic_salary','allowances','deductions','net_salary','overtime_hours','overtime_pay','bpjs_kesehetanggal','bpjs_tk','pph21','late_penalty','transport_allowance','meal_allowance','bank_account_id'];
+  const updates = {};
+  for (const f of fields) if (req.body[f] !== undefined) updates[f] = req.body[f];
+  if (req.body.net_salary !== undefined) updates.net_salary = req.body.net_salary;
+
+  // Track approval
+  if (req.body.status === 'Approved' && old.status !== 'Approved') {
+    updates.approved_by = req.user.name;
+    updates.approved_at = new Date().toISOString();
+  }
+
   if (req.body.status === 'Paid' && old.status !== 'Paid') {
+    // Track who paid
+    updates.paid_by = req.user.name;
+    updates.paid_at = new Date().toISOString();
     // Mark as paid - create bank transaction + journal (Feature B/G)
     const bankAccountId = req.body.bank_account_id || old.bank_account_id;
     if (bankAccountId) {
@@ -392,12 +425,6 @@ router.put('/payroll/:id', roleMiddleware('Super Admin', 'Admin'), (req, res) =>
     // Journal
     createJournal(new Date().toISOString().slice(0,10), `Pembayaran gaji period ${old.period}`, 'Gaji & Upah', 'Kas & Bank', old.net_salary, 'payroll', old.id);
   }
-
-  // Allow editing payroll fields
-  const fields = ['status','basic_salary','allowances','deductions','net_salary','overtime_hours','overtime_pay','bpjs_kesehetanggal','bpjs_tk','pph21','late_penalty','transport_allowance','meal_allowance','bank_account_id'];
-  const updates = {};
-  for (const f of fields) if (req.body[f] !== undefined) updates[f] = req.body[f];
-  if (req.body.net_salary !== undefined) updates.net_salary = req.body.net_salary;
 
   if (Object.keys(updates).length > 0) {
     const setClause = Object.keys(updates).map(k => `${k} = ?`).join(',');
@@ -427,11 +454,13 @@ router.post('/leaves', roleMiddleware('Super Admin', 'Admin', 'Staff'), (req, re
     if (!empId) return res.status(403).json({ error: 'Data karyawan tidak ditemukan' });
     req.body.employee_id = empId;
   }
-  const r = db.prepare('INSERT INTO leave_requests (employee_id,type,start_date,end_date,reason,status) VALUES (?,?,?,?,?,?)').run(req.body.employee_id,req.body.type,req.body.start_date,req.body.end_date,req.body.reason,'Pending');
+  const r = db.prepare('INSERT INTO leave_requests (employee_id,type,start_date,end_date,reason,status,requested_by_name) VALUES (?,?,?,?,?,?,?)').run(req.body.employee_id,req.body.type,req.body.start_date,req.body.end_date,req.body.reason,'Pending',req.user.name);
   res.json(db.prepare('SELECT l.*,e.name as employee_name FROM leave_requests l LEFT JOIN employees e ON l.employee_id=e.id WHERE l.id=?').get(r.lastInsertRowid));
 });
 router.put('/leaves/:id', roleMiddleware('Super Admin', 'Admin'), (req, res) => {
-  db.prepare('UPDATE leave_requests SET status=?, approved_by=? WHERE id=?').run(req.body.status, req.body.approved_by||null, req.params.id);
+  const now = new Date().toISOString();
+  db.prepare('UPDATE leave_requests SET status=?, approved_by=?, approved_by_name=?, approved_at=? WHERE id=?')
+    .run(req.body.status, req.user.id, req.user.name, now, req.params.id);
   res.json(db.prepare('SELECT * FROM leave_requests WHERE id=?').get(req.params.id));
 });
 
@@ -479,8 +508,8 @@ router.post('/attendance', roleMiddleware('Super Admin', 'Admin', 'Staff'), (req
     }
   }
 
-  const r = db.prepare('INSERT INTO attendance (employee_id,date,check_in,check_out,status,late_minutes,penalty_amount) VALUES (?,?,?,?,?,?,?)')
-    .run(req.body.employee_id, req.body.date, req.body.check_in, req.body.check_out, req.body.status || 'Hadir', lateMinutes, penaltyAmount);
+  const r = db.prepare('INSERT INTO attendance (employee_id,date,check_in,check_out,status,late_minutes,penalty_amount,photo_in,lat_in,lng_in) VALUES (?,?,?,?,?,?,?,?,?,?)')
+    .run(req.body.employee_id, req.body.date, req.body.check_in, req.body.check_out, lateMinutes > 0 ? 'Terlambat' : (req.body.status || 'Hadir'), lateMinutes, penaltyAmount, req.body.photo_in || null, req.body.lat_in || null, req.body.lng_in || null);
   res.json(db.prepare('SELECT a.*,e.name as employee_name FROM attendance a LEFT JOIN employees e ON a.employee_id=e.id WHERE a.id=?').get(r.lastInsertRowid));
 });
 
@@ -508,9 +537,77 @@ router.put('/attendance/:id', roleMiddleware('Super Admin', 'Admin', 'Staff'), (
     }
   }
 
-  db.prepare('UPDATE attendance SET check_in=?,check_out=?,status=?,late_minutes=?,penalty_amount=? WHERE id=?')
-    .run(req.body.check_in, req.body.check_out, req.body.status, lateMinutes, penaltyAmount, req.params.id);
+  db.prepare('UPDATE attendance SET check_in=?,check_out=?,status=?,late_minutes=?,penalty_amount=?,photo_out=?,lat_out=?,lng_out=? WHERE id=?')
+    .run(req.body.check_in, req.body.check_out, req.body.status, lateMinutes, penaltyAmount, req.body.photo_out || null, req.body.lat_out || null, req.body.lng_out || null, req.params.id);
   res.json(db.prepare('SELECT * FROM attendance WHERE id=?').get(req.params.id));
+});
+
+// ── Attendance Monthly Recap ──
+router.get('/attendance/recap', roleMiddleware('Super Admin', 'Admin'), (req, res) => {
+  const { month } = req.query; // format: 2026-04
+  if (!month) return res.status(400).json({ error: 'month required (YYYY-MM)' });
+  const startDate = `${month}-01`;
+  const endDate = `${month}-31`;
+
+  const employees = db.prepare("SELECT id, name, position FROM employees WHERE status = 'Aktif' ORDER BY name").all();
+  const shifts = db.prepare('SELECT * FROM shifts ORDER BY id').all();
+
+  // Count working days in month (Mon-Sat)
+  const y = Number(month.slice(0, 4));
+  const m = Number(month.slice(5, 7)) - 1;
+  let workingDays = 0;
+  for (let d = 1; d <= 31; d++) {
+    const dt = new Date(y, m, d);
+    if (dt.getMonth() !== m) break;
+    const dow = dt.getDay();
+    if (dow >= 1 && dow <= 6) workingDays++;
+  }
+
+  const recap = employees.map(emp => {
+    const rows = db.prepare('SELECT * FROM attendance WHERE employee_id = ? AND date >= ? AND date <= ? ORDER BY date').all(emp.id, startDate, endDate);
+    const hadir = rows.filter(r => r.status === 'Hadir' || r.status === 'Terlambat').length;
+    const terlambat = rows.filter(r => r.status === 'Terlambat' || (r.late_minutes && r.late_minutes > 0)).length;
+    const izin = rows.filter(r => r.status === 'Izin').length;
+    const sakit = rows.filter(r => r.status === 'Sakit').length;
+    const alpha = Math.max(0, workingDays - hadir - izin - sakit);
+    const totalLateMinutes = rows.reduce((s, r) => s + (r.late_minutes || 0), 0);
+    const totalPenalty = rows.reduce((s, r) => s + (r.penalty_amount || 0), 0);
+
+    return {
+      employee_id: emp.id,
+      employee_name: emp.name,
+      position: emp.position,
+      working_days: workingDays,
+      hadir,
+      terlambat,
+      izin,
+      sakit,
+      alpha,
+      total_late_minutes: totalLateMinutes,
+      total_penalty: totalPenalty,
+      attendance_rate: workingDays > 0 ? Math.round((hadir / workingDays) * 100) : 0,
+      details: rows,
+    };
+  });
+
+  const summary = {
+    month,
+    working_days: workingDays,
+    total_employees: employees.length,
+    avg_attendance_rate: recap.length > 0 ? Math.round(recap.reduce((s, r) => s + r.attendance_rate, 0) / recap.length) : 0,
+    total_late: recap.reduce((s, r) => s + r.terlambat, 0),
+    total_alpha: recap.reduce((s, r) => s + r.alpha, 0),
+    total_penalty: recap.reduce((s, r) => s + r.total_penalty, 0),
+  };
+
+  res.json({ recap, summary, shifts });
+});
+
+// ── Attendance Detail (single record with photo) ──
+router.get('/attendance/:id', roleMiddleware('Super Admin', 'Admin', 'Staff'), (req, res) => {
+  const row = db.prepare('SELECT a.*, e.name as employee_name, e.position FROM attendance a LEFT JOIN employees e ON a.employee_id = e.id WHERE a.id = ?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  res.json(row);
 });
 
 // ── Project Budgets (Feature D) ──
@@ -587,8 +684,8 @@ router.get('/purchase-requests/:id', roleMiddleware('Super Admin', 'Admin', 'Fin
 router.post('/purchase-requests', roleMiddleware('Super Admin', 'Admin', 'Staff'), (req, res) => {
   const { code, project_id, notes, items } = req.body;
   const empId = getEmployeeIdForUser(req);
-  const r = db.prepare('INSERT INTO purchase_requests (code,project_id,requested_by,status,notes) VALUES (?,?,?,?,?)')
-    .run(code, project_id || null, req.user.id, 'Draft', notes || '');
+  const r = db.prepare('INSERT INTO purchase_requests (code,project_id,requested_by,status,notes,requested_by_name) VALUES (?,?,?,?,?,?)')
+    .run(code, project_id || null, req.user.id, 'Draft', notes || '', req.user.name);
 
   if (items && items.length) {
     const stmt = db.prepare('INSERT INTO purchase_request_items (pr_id,item_id,description,qty,unit,estimated_price) VALUES (?,?,?,?,?,?)');
@@ -617,12 +714,12 @@ router.put('/purchase-requests/:id', roleMiddleware('Super Admin', 'Admin', 'Sta
 });
 
 router.put('/purchase-requests/:id/approve', roleMiddleware('Super Admin', 'Admin'), (req, res) => {
-  db.prepare("UPDATE purchase_requests SET status = 'Approved' WHERE id = ?").run(req.params.id);
+  db.prepare("UPDATE purchase_requests SET status = 'Approved', approved_by_name = ?, approved_at = ? WHERE id = ?").run(req.user.name, new Date().toISOString(), req.params.id);
   res.json({ success: true });
 });
 
 router.put('/purchase-requests/:id/reject', roleMiddleware('Super Admin', 'Admin'), (req, res) => {
-  db.prepare("UPDATE purchase_requests SET status = 'Rejected' WHERE id = ?").run(req.params.id);
+  db.prepare("UPDATE purchase_requests SET status = 'Rejected', approved_by_name = ?, approved_at = ? WHERE id = ?").run(req.user.name, new Date().toISOString(), req.params.id);
   res.json({ success: true });
 });
 
@@ -752,6 +849,66 @@ router.delete('/purchase-orders/:id', roleMiddleware('Super Admin', 'Admin'), (r
   db.prepare('DELETE FROM purchase_order_items WHERE po_id = ?').run(req.params.id);
   db.prepare('DELETE FROM purchase_orders WHERE id = ?').run(req.params.id);
   res.json({ success: true });
+});
+
+// ── Expense Requests (Approval) ──
+router.get('/expense-requests', roleMiddleware('Super Admin', 'Admin', 'Finance'), (req, res) => {
+  const { status } = req.query;
+  let sql = `SELECT er.*, p.name as project_name FROM expense_requests er LEFT JOIN projects p ON er.project_id = p.id`;
+  const params = [];
+  if (status) {
+    const statuses = status.split(',').map(s => s.trim());
+    sql += ` WHERE er.status IN (${statuses.map(() => '?').join(',')})`;
+    params.push(...statuses);
+  }
+  sql += ' ORDER BY er.id DESC';
+  try {
+    const data = db.prepare(sql).all(...params);
+    res.json({ data });
+  } catch (e) {
+    res.json({ data: [] });
+  }
+});
+
+router.post('/expense-requests', roleMiddleware('Super Admin', 'Admin', 'Finance', 'Staff'), (req, res) => {
+  const { project_id, budget_id, description, amount, date, rab_item } = req.body;
+  const requested_by = req.user.name || 'Unknown';
+  const r = db.prepare('INSERT INTO expense_requests (project_id, budget_id, description, amount, date, requested_by, status, rab_item) VALUES (?,?,?,?,?,?,?,?)')
+    .run(project_id || null, budget_id || null, description, Number(amount) || 0, date || new Date().toISOString().slice(0, 10), requested_by, 'Pending', rab_item || '');
+  auditLog(req.user.id, req.user.name, 'INSERT', 'expense_requests', r.lastInsertRowid, null, req.body);
+  res.json(db.prepare('SELECT * FROM expense_requests WHERE id=?').get(r.lastInsertRowid));
+});
+
+router.put('/expense-requests/:id', roleMiddleware('Super Admin', 'Admin', 'Finance'), (req, res) => {
+  const { status } = req.body;
+  const old = db.prepare('SELECT * FROM expense_requests WHERE id=?').get(req.params.id);
+  db.prepare('UPDATE expense_requests SET status=?, approved_by_name=?, approved_at=? WHERE id=?').run(status, req.user.name, new Date().toISOString(), req.params.id);
+  auditLog(req.user.id, req.user.name, 'UPDATE', 'expense_requests', req.params.id, old, { status });
+  res.json({ success: true });
+});
+
+router.delete('/expense-requests/:id', roleMiddleware('Super Admin', 'Admin'), (req, res) => {
+  db.prepare('DELETE FROM expense_requests WHERE id=?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// ── Ledgers with proper joins ──
+router.get('/ledgers/piutang', roleMiddleware('Super Admin', 'Admin', 'Finance'), (req, res) => {
+  const { search } = req.query;
+  let sql = "SELECT i.*, c.name as client_name FROM invoices i LEFT JOIN customers c ON i.client_id = c.id WHERE i.status IN ('Draft','Sent')";
+  const params = [];
+  if (search) { sql += " AND (i.number LIKE ? OR c.name LIKE ?)"; params.push(`%${search}%`, `%${search}%`); }
+  sql += " ORDER BY i.due_date ASC";
+  res.json({ data: db.prepare(sql).all(...params) });
+});
+
+router.get('/ledgers/hutang', roleMiddleware('Super Admin', 'Admin', 'Finance'), (req, res) => {
+  const { search } = req.query;
+  let sql = "SELECT p.*, v.name as vendor_name FROM purchases p LEFT JOIN vendors v ON p.vendor_id = v.id WHERE p.status NOT IN ('Received','Cancelled')";
+  const params = [];
+  if (search) { sql += " AND (p.number LIKE ? OR v.name LIKE ?)"; params.push(`%${search}%`, `%${search}%`); }
+  sql += " ORDER BY p.date DESC";
+  res.json({ data: db.prepare(sql).all(...params) });
 });
 
 // ── Users: Super Admin only ──
@@ -946,8 +1103,9 @@ router.get('/search', (req, res) => {
 router.post('/bulk/leaves', roleMiddleware('Super Admin', 'Admin'), (req, res) => {
   const { ids, status } = req.body;
   if (!ids?.length || !status) return res.status(400).json({ error: 'ids and status required' });
-  const stmt = db.prepare('UPDATE leave_requests SET status = ? WHERE id = ?');
-  for (const id of ids) stmt.run(status, id);
+  const now = new Date().toISOString();
+  const stmt = db.prepare('UPDATE leave_requests SET status = ?, approved_by_name = ?, approved_at = ? WHERE id = ?');
+  for (const id of ids) stmt.run(status, req.user.name, now, id);
   res.json({ success: true, updated: ids.length });
 });
 router.post('/bulk/payroll', roleMiddleware('Super Admin', 'Admin'), (req, res) => {
@@ -978,6 +1136,136 @@ router.post('/bulk/inventory-items', roleMiddleware('Super Admin', 'Admin'), (re
   } else {
     res.status(400).json({ error: 'Unknown action' });
   }
+});
+
+// ── Chat System ──
+// List rooms for current user
+router.get('/chat/rooms', (req, res) => {
+  const rooms = db.prepare(`
+    SELECT cr.*, 
+      (SELECT COUNT(*) FROM chat_messages cm WHERE cm.room_id = cr.id AND cm.read_by NOT LIKE ?) as unread,
+      (SELECT cm2.message FROM chat_messages cm2 WHERE cm2.room_id = cr.id ORDER BY cm2.id DESC LIMIT 1) as last_message,
+      (SELECT cm3.created_at FROM chat_messages cm3 WHERE cm3.room_id = cr.id ORDER BY cm3.id DESC LIMIT 1) as last_message_at,
+      (SELECT u.name FROM chat_messages cm4 JOIN users u ON cm4.sender_id = u.id WHERE cm4.room_id = cr.id ORDER BY cm4.id DESC LIMIT 1) as last_sender
+    FROM chat_rooms cr
+    JOIN chat_members cmem ON cmem.room_id = cr.id AND cmem.user_id = ?
+    ORDER BY last_message_at DESC NULLS LAST
+  `).all(`%${req.user.id}%`, req.user.id);
+
+  // For direct chats, get the other user's name
+  for (const room of rooms) {
+    room.members = db.prepare('SELECT cm.user_id, u.name, u.role FROM chat_members cm JOIN users u ON cm.user_id = u.id WHERE cm.room_id = ?').all(room.id);
+    if (room.type === 'direct') {
+      const other = room.members.find(m => m.user_id !== req.user.id);
+      if (other) room.display_name = other.name;
+      else room.display_name = room.name || 'Chat';
+    } else {
+      room.display_name = room.name || 'Grup';
+    }
+  }
+  res.json({ data: rooms });
+});
+
+// Create direct chat or group
+router.post('/chat/rooms', (req, res) => {
+  const { type, name, member_ids } = req.body;
+  if (type === 'direct' && member_ids?.length === 1) {
+    // Check if direct chat already exists
+    const existing = db.prepare(`
+      SELECT cr.id FROM chat_rooms cr
+      WHERE cr.type = 'direct'
+      AND EXISTS (SELECT 1 FROM chat_members WHERE room_id = cr.id AND user_id = ?)
+      AND EXISTS (SELECT 1 FROM chat_members WHERE room_id = cr.id AND user_id = ?)
+      AND (SELECT COUNT(*) FROM chat_members WHERE room_id = cr.id) = 2
+    `).get(req.user.id, member_ids[0]);
+    if (existing) return res.json({ id: existing.id, existing: true });
+  }
+
+  const r = db.prepare('INSERT INTO chat_rooms (name, type, created_by) VALUES (?, ?, ?)').run(name || null, type || 'direct', req.user.id);
+  const roomId = r.lastInsertRowid;
+
+  // Add creator
+  db.prepare('INSERT INTO chat_members (room_id, user_id) VALUES (?, ?)').run(roomId, req.user.id);
+  // Add other members
+  for (const uid of (member_ids || [])) {
+    if (uid !== req.user.id) {
+      db.prepare('INSERT OR IGNORE INTO chat_members (room_id, user_id) VALUES (?, ?)').run(roomId, uid);
+    }
+  }
+  res.json({ id: roomId });
+});
+
+// Get messages for a room
+router.get('/chat/rooms/:id/messages', (req, res) => {
+  // Verify membership
+  const member = db.prepare('SELECT 1 FROM chat_members WHERE room_id = ? AND user_id = ?').get(req.params.id, req.user.id);
+  if (!member) return res.status(403).json({ error: 'Not a member' });
+
+  const { before, limit = 50 } = req.query;
+  let sql = 'SELECT cm.*, u.name as sender_name, u.role as sender_role FROM chat_messages cm JOIN users u ON cm.sender_id = u.id WHERE cm.room_id = ?';
+  const params = [req.params.id];
+  if (before) { sql += ' AND cm.id < ?'; params.push(before); }
+  sql += ' ORDER BY cm.id DESC LIMIT ?';
+  params.push(Number(limit));
+
+  const messages = db.prepare(sql).all(...params).reverse();
+
+  // Mark as read
+  const readTag = `%${req.user.id}%`;
+  const unread = db.prepare('SELECT id, read_by FROM chat_messages WHERE room_id = ? AND read_by NOT LIKE ?').all(req.params.id, readTag);
+  for (const msg of unread) {
+    const readBy = JSON.parse(msg.read_by || '[]');
+    if (!readBy.includes(req.user.id)) {
+      readBy.push(req.user.id);
+      db.prepare('UPDATE chat_messages SET read_by = ? WHERE id = ?').run(JSON.stringify(readBy), msg.id);
+    }
+  }
+
+  res.json({ data: messages });
+});
+
+// Send message
+router.post('/chat/rooms/:id/messages', (req, res) => {
+  const member = db.prepare('SELECT 1 FROM chat_members WHERE room_id = ? AND user_id = ?').get(req.params.id, req.user.id);
+  if (!member) return res.status(403).json({ error: 'Not a member' });
+
+  const { message, file_url, file_name, file_type } = req.body;
+  const readBy = JSON.stringify([req.user.id]);
+  const r = db.prepare('INSERT INTO chat_messages (room_id, sender_id, message, file_url, file_name, file_type, read_by) VALUES (?,?,?,?,?,?,?)')
+    .run(req.params.id, req.user.id, message || '', file_url || null, file_name || null, file_type || null, readBy);
+
+  const msg = db.prepare('SELECT cm.*, u.name as sender_name, u.role as sender_role FROM chat_messages cm JOIN users u ON cm.sender_id = u.id WHERE cm.id = ?').get(r.lastInsertRowid);
+
+  // Notify other members
+  const members = db.prepare('SELECT user_id FROM chat_members WHERE room_id = ? AND user_id != ?').all(req.params.id, req.user.id);
+  for (const m of members) {
+    notify(m.user_id, 'chat_message', `Pesan dari ${req.user.name}`, message ? message.slice(0, 100) : '📎 File');
+  }
+
+  res.json(msg);
+});
+
+// Upload file (base64)
+router.post('/chat/upload', (req, res) => {
+  const { data, name, type } = req.body;
+  // Store as base64 — in production use file storage
+  res.json({ url: data, name, type });
+});
+
+// Get all users for starting new chat
+router.get('/chat/users', (req, res) => {
+  const users = db.prepare("SELECT id, name, role, email FROM users WHERE status = 'Aktif' AND id != ? ORDER BY name").all(req.user.id);
+  res.json({ data: users });
+});
+
+// Unread count
+router.get('/chat/unread', (req, res) => {
+  const count = db.prepare(`
+    SELECT COUNT(*) as c FROM chat_messages cm
+    JOIN chat_members cmem ON cmem.room_id = cm.room_id AND cmem.user_id = ?
+    WHERE cm.read_by NOT LIKE ? AND cm.sender_id != ?
+  `).get(req.user.id, `%${req.user.id}%`, req.user.id);
+  res.json({ unread: count?.c || 0 });
 });
 
 export default router;

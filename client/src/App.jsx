@@ -38,6 +38,7 @@ import LeaveRequest from './pages/HRD/LeaveRequest';
 import LeaveApproval from './pages/HRD/LeaveApproval';
 import Shifts from './pages/HRD/Shifts';
 import SlipGaji from './pages/HRD/SlipGaji';
+import Chat from './pages/Chat';
 
 // Role constants
 const SA = ['Super Admin'];
@@ -53,6 +54,7 @@ export default function App() {
       <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route index element={<Dashboard />} />
         <Route path="profile" element={<Profile />} />
+        <Route path="chat" element={<Chat />} />
 
         {/* Business */}
         <Route path="projects" element={<RoleGuard roles={SA_A}><Projects /></RoleGuard>} />

@@ -14,6 +14,10 @@ const insertUser = db.prepare(`INSERT OR IGNORE INTO users (name, email, passwor
 for (const u of users) insertUser.run(u.name, u.email, u.password_hash, u.role, u.status);
 
 const employees = [
+  { name: 'Super Admin', position: 'Direktur', email: 'superadmin@manggala.id', phone: '081200000001', salary: 20000000, status: 'Aktif' },
+  { name: 'Admin', position: 'Admin Manager', email: 'admin@manggala.id', phone: '081200000002', salary: 12000000, status: 'Aktif' },
+  { name: 'Finance', position: 'Finance Manager', email: 'finance@manggala.id', phone: '081200000003', salary: 11000000, status: 'Aktif' },
+  { name: 'Staff', position: 'Staff Operasional', email: 'staff@manggala.id', phone: '081200000004', salary: 7000000, status: 'Aktif' },
   { name: 'Budi Santoso', position: 'Project Manager', email: 'budi@manggala.id', phone: '081234567890', salary: 12000000, status: 'Aktif' },
   { name: 'Siti Aminah', position: 'Accountant', email: 'siti@manggala.id', phone: '081234567891', salary: 9000000, status: 'Aktif' },
   { name: 'Agus Pratama', position: 'Engineer', email: 'agus@manggala.id', phone: '081234567892', salary: 10000000, status: 'Aktif' },

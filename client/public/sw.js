@@ -1,4 +1,4 @@
-const CACHE_NAME = 'erp-manggala-v1';
+const CACHE_NAME = 'erp-manggala-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -26,7 +26,10 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // API requests: network first, cache for 5 min
+  // Only handle GET requests — POST/PUT/DELETE cannot be cached
+  if (request.method !== 'GET') return;
+
+  // API GET requests: network first, fall back to cache
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(
       fetch(request)

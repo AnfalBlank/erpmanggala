@@ -1,4 +1,4 @@
-import db from '../db/init.js';
+import db from './db/init.js';
 
 export function getOpenAPISpec() {
   return {

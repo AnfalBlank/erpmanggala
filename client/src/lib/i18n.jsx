@@ -22,8 +22,11 @@ export function I18nProvider({ children }) {
     return val || key;
   };
 
+  // Force re-render all consumers when lang changes by creating new context value
+  const value = { t, lang, setLang: changeLang };
+
   return (
-    <I18nContext.Provider value={{ t, lang, setLang: changeLang }}>
+    <I18nContext.Provider value={value} key={lang}>
       {children}
     </I18nContext.Provider>
   );

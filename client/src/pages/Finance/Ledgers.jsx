@@ -20,16 +20,16 @@ export default function Ledgers() {
   const [data, setData] = useState([]);
 
   useEffect(() => {
-    const endpoint = tab === 'piutang' ? '/invoices' : '/purchases';
+    const endpoint = tab === 'piutang' ? '/ledgers/piutang' : '/ledgers/hutang';
     api.get(`${endpoint}?search=${search}`).then(res => setData(res.data || [])).catch(() => setData([]));
   }, [tab, search]);
 
   const clientKey = tab === 'piutang' ? 'client_name' : 'vendor_name';
 
   const columns = [
-    { key: 'due_date', label: 'Jatuh Tempo' },
+    { key: 'due_date', label: 'Jatuh Tempo', render: r => r.due_date || r.date || '-' },
     { key: 'number', label: 'Asal' },
-    { key: clientKey, label: tab === 'piutang' ? 'Klien' : 'Vendor' },
+    { key: clientKey, label: tab === 'piutang' ? 'Klien' : 'Vendor', render: r => r[clientKey] || '-' },
     { key: 'total', label: 'Total', render: r => fmt(r.total || 0) },
     { key: 'status', label: 'Status', render: r => statusBadge(r.due_date, r.status === 'Paid' || r.status === 'Lunas') },
   ];

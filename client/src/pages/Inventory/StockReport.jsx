@@ -14,7 +14,7 @@ export default function StockReport() {
 
   useEffect(() => {
     api.get(`/inventory/items?search=${search}&limit=100`).then(res => setData(res.data || [])).catch(console.error);
-    api.get('/inventory/warehouses').then(res => setWarehouses(res.data || [])).catch(console.error);
+    api.get('/warehouses').then(res => setWarehouses(res.data || [])).catch(console.error);
   }, [search]);
 
   const filtered = data.filter(i => !warehouseFilter || i.warehouse_id == warehouseFilter);

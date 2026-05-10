@@ -316,6 +316,46 @@ db.exec(`
     unit_price REAL DEFAULT 0,
     amount REAL DEFAULT 0
   );
+
+  CREATE TABLE IF NOT EXISTS expense_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER REFERENCES projects(id),
+    budget_id INTEGER REFERENCES project_budgets(id),
+    description TEXT,
+    amount REAL DEFAULT 0,
+    date TEXT,
+    requested_by TEXT,
+    status TEXT DEFAULT 'Pending',
+    rab_item TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS chat_rooms (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    type TEXT DEFAULT 'direct',
+    created_by INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS chat_members (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    room_id INTEGER REFERENCES chat_rooms(id),
+    user_id INTEGER REFERENCES users(id),
+    joined_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS chat_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    room_id INTEGER REFERENCES chat_rooms(id),
+    sender_id INTEGER REFERENCES users(id),
+    message TEXT,
+    file_url TEXT,
+    file_name TEXT,
+    file_type TEXT,
+    read_by TEXT DEFAULT '[]',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 // ── Safe ALTER TABLE migrations ──
@@ -324,6 +364,14 @@ const alters = [
   "ALTER TABLE attendance ADD COLUMN late_minutes INTEGER DEFAULT 0",
   "ALTER TABLE attendance ADD COLUMN penalty_amount REAL DEFAULT 0",
   "ALTER TABLE attendance ADD COLUMN shift_id INTEGER",
+
+  // Attendance photo & location
+  "ALTER TABLE attendance ADD COLUMN photo_in TEXT",
+  "ALTER TABLE attendance ADD COLUMN photo_out TEXT",
+  "ALTER TABLE attendance ADD COLUMN lat_in REAL",
+  "ALTER TABLE attendance ADD COLUMN lng_in REAL",
+  "ALTER TABLE attendance ADD COLUMN lat_out REAL",
+  "ALTER TABLE attendance ADD COLUMN lng_out REAL",
 
   // Feature B: employee payroll fields
   "ALTER TABLE employees ADD COLUMN basic_salary REAL DEFAULT 0",
@@ -366,6 +414,24 @@ const alters = [
   // bank_accounts: add coa_id
   "ALTER TABLE bank_accounts ADD COLUMN coa_id INTEGER",
   "ALTER TABLE bank_accounts ADD COLUMN status TEXT DEFAULT 'Aktif'",
+
+  // Approval tracking
+  "ALTER TABLE leave_requests ADD COLUMN requested_by_name TEXT",
+  "ALTER TABLE leave_requests ADD COLUMN approved_by_name TEXT",
+  "ALTER TABLE leave_requests ADD COLUMN approved_at TEXT",
+
+  "ALTER TABLE expense_requests ADD COLUMN approved_by_name TEXT",
+  "ALTER TABLE expense_requests ADD COLUMN approved_at TEXT",
+
+  "ALTER TABLE purchase_requests ADD COLUMN requested_by_name TEXT",
+  "ALTER TABLE purchase_requests ADD COLUMN approved_by_name TEXT",
+  "ALTER TABLE purchase_requests ADD COLUMN approved_at TEXT",
+
+  "ALTER TABLE payroll ADD COLUMN generated_by TEXT",
+  "ALTER TABLE payroll ADD COLUMN approved_by TEXT",
+  "ALTER TABLE payroll ADD COLUMN approved_at TEXT",
+  "ALTER TABLE payroll ADD COLUMN paid_by TEXT",
+  "ALTER TABLE payroll ADD COLUMN paid_at TEXT",
 ];
 
 for (const sql of alters) {
